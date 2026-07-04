@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-  <title>SwC Arch Linux 终端</title>
+  <title>SwC Linux 终端</title>
   <style>
     body {
       margin: 0;
@@ -83,8 +83,8 @@
     .key-row {
       display: flex;
       flex-wrap: nowrap;
-      gap: 3px;
       align-items: center;
+      gap: 3px;
     }
     .key-btn {
       background: #3f4352;
@@ -109,9 +109,7 @@
       user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
-    .key-btn:active, .key-btn.pressed {
-      background: #5a5e7b;
-    }
+    .key-btn:active, .key-btn.pressed { background: #5a5e7b; }
     .key-btn.space { width: auto; flex: 1; min-width: 60px; }
     .key-btn.tab { width: 52px; }
     .key-btn.caps { width: 60px; }
@@ -122,18 +120,7 @@
     .key-btn.fn, .key-btn.ctrl, .key-btn.win, .key-btn.alt { width: 48px; }
     .key-btn.arrow { width: 34px; }
     .key-btn.fkey { width: 38px; }
-    .key-btn.bottom-square {
-      width: 34px;
-      height: 34px;
-      min-width: 34px;
-      max-width: 34px;
-      flex: none;
-    }
     .key-btn.active { background: #6a8e4b; border-color: #8ab86a; }
-    .spacer {
-      flex: 0 0 auto;
-      visibility: hidden;
-    }
   </style>
 </head>
 <body>
@@ -168,6 +155,7 @@
   if (typeof V86 === 'undefined') { log('V86 库加载失败', 'error'); return; }
   log('V86 库加载成功', 'success');
 
+  // 简易版 Linux 加载配置
   const config = {
     screen_container: screenDiv,
     bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
@@ -191,12 +179,11 @@
 
   emulator.add_listener("emulator-loaded", () => {
     log('模拟器已启动！命令行就绪。', 'success');
-    log('当前系统：Arch Linux', 'info');
-    log('支持多点触控，可同时按下修饰键', 'info');
+    log('当前系统：Buildroot Linux · 登录：root / 空密码', 'info');
   });
   emulator.add_listener("error", (e) => log('模拟器错误: ' + (e.message || e), 'error'));
 
-  // 键盘布局 (每行带有左右对称偏移量 offset)
+  // 键盘布局（字母阶梯 + 标准符号）
   const keyRows = [
     { offset: 0, keys: [
       {label:'F1', code:'F1', key:'F1', keyCode:112, extraClass:'fkey'},
@@ -276,17 +263,17 @@
       {label:'Shift', code:'ShiftRight', key:'Shift', keyCode:16, shift:true, extraClass:'shift'}
     ]},
     { offset: 27, keys: [
-      {label:'Fn', code:'Fn', key:'Fn', keyCode:0, extraClass:'fn bottom-square'},
-      {label:'Ctrl', code:'ControlLeft', key:'Control', keyCode:17, extraClass:'ctrl bottom-square'},
-      {label:'Win', code:'MetaLeft', key:'Meta', keyCode:91, extraClass:'win bottom-square'},
-      {label:'Alt', code:'AltLeft', key:'Alt', keyCode:18, extraClass:'alt bottom-square'},
+      {label:'Fn', code:'Fn', key:'Fn', keyCode:0, extraClass:'fn'},
+      {label:'Ctrl', code:'ControlLeft', key:'Control', keyCode:17, extraClass:'ctrl'},
+      {label:'Win', code:'MetaLeft', key:'Meta', keyCode:91, extraClass:'win'},
+      {label:'Alt', code:'AltLeft', key:'Alt', keyCode:18, extraClass:'alt'},
       {label:'Space', code:'Space', key:' ', keyCode:32, space:true},
-      {label:'Alt', code:'AltRight', key:'Alt', keyCode:18, extraClass:'alt bottom-square'},
-      {label:'Ctrl', code:'ControlRight', key:'Control', keyCode:17, extraClass:'ctrl bottom-square'},
-      {label:'←', code:'ArrowLeft', key:'ArrowLeft', keyCode:37, extraClass:'arrow bottom-square'},
-      {label:'↓', code:'ArrowDown', key:'ArrowDown', keyCode:40, extraClass:'arrow bottom-square'},
-      {label:'→', code:'ArrowRight', key:'ArrowRight', keyCode:39, extraClass:'arrow bottom-square'},
-      {label:'Fn', code:'Fn2', key:'Fn', keyCode:0, extraClass:'fn bottom-square'}
+      {label:'Alt', code:'AltRight', key:'Alt', keyCode:18, extraClass:'alt'},
+      {label:'Ctrl', code:'ControlRight', key:'Control', keyCode:17, extraClass:'ctrl'},
+      {label:'←', code:'ArrowLeft', key:'ArrowLeft', keyCode:37, extraClass:'arrow'},
+      {label:'↓', code:'ArrowDown', key:'ArrowDown', keyCode:40, extraClass:'arrow'},
+      {label:'→', code:'ArrowRight', key:'ArrowRight', keyCode:39, extraClass:'arrow'},
+      {label:'Fn', code:'Fn2', key:'Fn', keyCode:0, extraClass:'fn'}
     ]}
   ];
 
@@ -410,11 +397,11 @@
     keyRows.forEach(row => {
       const rowDiv = document.createElement('div');
       rowDiv.className = 'key-row';
-      // 左侧 spacer
+      // 左侧偏移占位
       if (row.offset > 0) {
         const leftSpacer = document.createElement('div');
-        leftSpacer.className = 'spacer';
         leftSpacer.style.width = row.offset + 'px';
+        leftSpacer.style.flex = 'none';
         rowDiv.appendChild(leftSpacer);
       }
       row.keys.forEach(k => {
@@ -429,13 +416,6 @@
         rowDiv.appendChild(btn);
         allButtons.push(btn);
       });
-      // 右侧 spacer (与左侧对称)
-      if (row.offset > 0) {
-        const rightSpacer = document.createElement('div');
-        rightSpacer.className = 'spacer';
-        rightSpacer.style.width = row.offset + 'px';
-        rowDiv.appendChild(rightSpacer);
-      }
       keyboardDiv.appendChild(rowDiv);
     });
     updateButtonLabels();
