@@ -19,7 +19,7 @@
     #log-panel {
       background: #0d1117;
       color: #c9d1d9;
-      flex: 0 0 50px;
+      flex: 0 0 80px;
       overflow-y: auto;
       padding: 4px 10px;
       border-bottom: 2px solid #2a3a4a;
@@ -141,6 +141,7 @@
 (function() {
   const logPanel = document.getElementById('log-panel');
   const screenDiv = document.getElementById('screen');
+  const screenContainer = document.getElementById('screen-container');
   const keyboardDiv = document.getElementById('keyboard');
   const dragHandle = document.getElementById('dragHandle');
 
@@ -152,10 +153,29 @@
     logPanel.scrollTop = logPanel.scrollHeight;
   }
 
-  if (typeof V86 === 'undefined') { log('V86 库加载失败', 'error'); return; }
+  // 检查基本环境
+  if (typeof V86 === 'undefined') {
+    log('V86 库加载失败，请检查网络或刷新重试', 'error');
+    return;
+  }
   log('V86 库加载成功', 'success');
 
-  // 简易版 Linux 加载配置
+  if (typeof SharedArrayBuffer === 'undefined') {
+    log('SharedArrayBuffer 不可用，v86 无法运行。请确保 _headers 文件已部署且包含正确的 COOP/COEP 头', 'error');
+    log('需要添加: Cross-Origin-Opener-Policy: same-origin 和 Cross-Origin-Embedder-Policy: require-corp', 'info');
+  } else {
+    log('SharedArrayBuffer 可用', 'success');
+  }
+
+  // 检查屏幕容器尺寸
+  const containerWidth = screenContainer.clientWidth;
+  const containerHeight = screenContainer.clientHeight;
+  log(`屏幕容器尺寸: ${containerWidth}x${containerHeight}`, 'info');
+  if (containerHeight < 100) {
+    log('警告：屏幕容器高度过小，可能导致 v86 初始化失败', 'warn');
+  }
+
+  // 模拟器配置
   const config = {
     screen_container: screenDiv,
     bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
@@ -170,18 +190,23 @@
 
   let emulator;
   try {
+    log('正在创建 V86 实例...', 'info');
     emulator = new V86(config);
-    log('模拟器实例已创建', 'success');
+    log('V86 实例已创建', 'success');
   } catch (e) {
-    log('创建模拟器实例失败: ' + e.message, 'error');
+    log('创建 V86 实例时发生错误: ' + e.message, 'error');
+    if (e.stack) log('堆栈: ' + e.stack.split('\n')[0], 'error');
     return;
   }
 
+  // 监听事件
   emulator.add_listener("emulator-loaded", () => {
     log('模拟器已启动！命令行就绪。', 'success');
     log('当前系统：Buildroot Linux · 登录：root / 空密码', 'info');
   });
-  emulator.add_listener("error", (e) => log('模拟器错误: ' + (e.message || e), 'error'));
+  emulator.add_listener("error", (e) => {
+    log('模拟器错误: ' + (e.message || e), 'error');
+  });
 
   // 键盘布局（字母阶梯 + 标准符号）
   const keyRows = [
@@ -397,7 +422,6 @@
     keyRows.forEach(row => {
       const rowDiv = document.createElement('div');
       rowDiv.className = 'key-row';
-      // 左侧偏移占位
       if (row.offset > 0) {
         const leftSpacer = document.createElement('div');
         leftSpacer.style.width = row.offset + 'px';
