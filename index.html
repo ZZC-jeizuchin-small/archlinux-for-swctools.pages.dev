@@ -14,16 +14,20 @@
       user-select: none;
       -webkit-user-select: none;
     }
+
     #screen-container {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       background: #000;
       z-index: 1;
     }
+
     #screen {
       width: 100%; height: 100%;
       border: none;
     }
+
+    /* 键盘样式保持不变 */
     #keyboard {
       position: fixed;
       width: auto;
@@ -79,6 +83,77 @@
     .key-btn.w220 { width: 220px; }
     .key-btn.active { background: #6a8e4b; border-color: #8ab86a; }
     .key-btn.modifier { background: #3a3a3a; font-size: 0.7rem; }
+
+    /* ---------- 资源监控浮窗 ---------- */
+    #resource-monitor {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      width: 320px;
+      max-width: calc(100vw - 20px);
+      background: rgba(10, 12, 16, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid #3a3d48;
+      border-radius: 12px;
+      z-index: 200;
+      padding: 16px;
+      font-size: 0.82rem;
+      color: #ccc;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #monitor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      color: #fff;
+    }
+    #monitor-close {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    .resource-item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .resource-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .resource-name {
+      font-weight: 500;
+      color: #aaa;
+    }
+    .resource-status {
+      font-size: 0.75rem;
+    }
+    .progress-bar-bg {
+      height: 6px;
+      background: #2a2d35;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #4a6a9e;
+      transition: width 0.3s;
+    }
+    .status-ok { color: #3fb950; }
+    .status-err { color: #f85149; }
+    .status-wait { color: #8b949e; }
+    .status-progress { color: #58a6ff; }
   </style>
 </head>
 <body>
@@ -92,39 +167,214 @@
     </div>
   </div>
 
+  <!-- 资源监控浮窗 -->
+  <div id="resource-monitor">
+    <div id="monitor-header">
+      <span>📡 文件加载状态</span>
+      <button id="monitor-close" title="关闭面板">✖</button>
+    </div>
+    <div id="resource-list"></div>
+  </div>
+
   <script src="./libv86.js"></script>
   <script>
   (function() {
-    // ==================== 错误处理辅助函数 ====================
+    // ==================== 资源监控 ====================
+    const monitor = document.getElementById('resource-monitor');
+    const closeBtn = document.getElementById('monitor-close');
+    const resourceList = document.getElementById('resource-list');
+
+    // 需要监控的6个文件
+    const resourceDefs = [
+      { id: 'libv86', name: 'libv86.js', type: 'script' },
+      { id: 'wasm', name: 'v86.wasm', type: 'fetch', url: './v86.wasm' },
+      { id: 'state', name: '状态文件 (state.bin)', type: 'fetch', url: 'https://stuff.aoodyconcor.de/d/local/robin/v86state.bin?sign=rVokpNP7dAffY5DSjoNBAIRyQkww7sTcTdIbEv3hwqY=:0' },
+      { id: 'sw', name: 'Service Worker (sw.js)', type: 'sw' },
+      { id: 'seabios', name: 'seabios.bin (仅检测)', type: 'head', url: './seabios.bin' },
+      { id: 'vgabios', name: 'vgabios.bin (仅检测)', type: 'head', url: './vgabios.bin' },
+    ];
+
+    const resources = {};
+    resourceDefs.forEach(r => {
+      resources[r.id] = {
+        ...r,
+        status: 'pending', // pending, loading, done, error
+        progress: 0,
+        message: ''
+      };
+    });
+
+    function renderResources() {
+      resourceList.innerHTML = resourceDefs.map(r => {
+        const res = resources[r.id];
+        let statusText = '';
+        let statusClass = '';
+        switch (res.status) {
+          case 'pending':
+            statusText = '等待中';
+            statusClass = 'status-wait';
+            break;
+          case 'loading':
+            statusText = `下载中 ${res.progress}%`;
+            statusClass = 'status-progress';
+            break;
+          case 'done':
+            statusText = '✅ 完成';
+            statusClass = 'status-ok';
+            break;
+          case 'error':
+            statusText = '❌ 失败';
+            statusClass = 'status-err';
+            break;
+        }
+        return `
+          <div class="resource-item">
+            <div class="resource-label">
+              <span class="resource-name">${r.name}</span>
+              <span class="resource-status ${statusClass}">${statusText}</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" style="width:${res.progress}%"></div>
+            </div>
+            ${res.message ? `<div style="font-size:0.7rem; color:#f85149; margin-top:2px;">${res.message}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateResource(id, updates) {
+      Object.assign(resources[id], updates);
+      renderResources();
+    }
+
+    // 关闭浮窗
+    closeBtn.addEventListener('click', () => {
+      monitor.style.display = 'none';
+    });
+
+    // ==================== 错误处理 ====================
     function showError(message) {
       console.error('[SwC Terminal]', message);
       alert('⚠️ 错误：' + message);
     }
 
-    // ==================== 注册 Service Worker ====================
+    // ==================== Service Worker 注册 ====================
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js')
         .then(reg => {
-          console.log('[SW] 注册成功，作用域:', reg.scope);
+          console.log('[SW] 注册成功:', reg.scope);
+          updateResource('sw', { status: 'done', progress: 100 });
         })
         .catch(err => {
-          showError('Service Worker 注册失败，离线缓存可能不可用：' + err.message);
+          updateResource('sw', { status: 'error', progress: 0, message: err.message });
+          console.warn('SW 注册失败:', err.message);
         });
     } else {
-      console.warn('当前浏览器不支持 Service Worker，无法离线使用。');
+      updateResource('sw', { status: 'error', progress: 0, message: '浏览器不支持 Service Worker' });
     }
 
+    // ==================== 包装 fetch 监控 wasm 和 state 下载 ====================
+    const originalFetch = window.fetch;
+    const monitoredUrls = {
+      './v86.wasm': 'wasm',
+      'https://stuff.aoodyconcor.de/d/local/robin/v86state.bin?sign=rVokpNP7dAffY5DSjoNBAIRyQkww7sTcTdIbEv3hwqY=:0': 'state'
+    };
+
+    window.fetch = async function(input, init) {
+      const requestUrl = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+      const resourceId = monitoredUrls[requestUrl];
+
+      if (resourceId) {
+        updateResource(resourceId, { status: 'loading', progress: 0 });
+        try {
+          const response = await originalFetch.call(window, input, init);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const contentLength = response.headers.get('content-length');
+          const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+          let loaded = 0;
+          const reader = response.body.getReader();
+          const stream = new ReadableStream({
+            async start(controller) {
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) {
+                    controller.close();
+                    return;
+                  }
+                  loaded += value.length;
+                  if (total) {
+                    const percent = Math.round((loaded / total) * 100);
+                    updateResource(resourceId, { progress: percent });
+                  }
+                  controller.enqueue(value);
+                }
+              } catch (err) {
+                controller.error(err);
+              }
+            }
+          });
+
+          const newResponse = new Response(stream, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers
+          });
+          updateResource(resourceId, { status: 'done', progress: 100 });
+          return newResponse;
+        } catch (err) {
+          updateResource(resourceId, { status: 'error', progress: 0, message: err.message });
+          throw err;
+        }
+      }
+      return originalFetch.call(window, input, init);
+    };
+
+    // ==================== 检测 seabios 和 vgabios 是否存在（HEAD 请求） ====================
+    async function checkHead(id, url) {
+      try {
+        updateResource(id, { status: 'loading' });
+        const resp = await originalFetch(url, { method: 'HEAD' });
+        if (resp.ok) {
+          updateResource(id, { status: 'done', progress: 100, message: '文件可用 (未使用)' });
+        } else {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+      } catch (err) {
+        updateResource(id, { status: 'error', progress: 0, message: err.message });
+      }
+    }
+    checkHead('seabios', './seabios.bin');
+    checkHead('vgabios', './vgabios.bin');
+
+    // ==================== libv86.js 加载监控 ====================
+    const scriptEl = document.querySelector('script[src="./libv86.js"]');
+    if (scriptEl) {
+      scriptEl.addEventListener('load', () => {
+        updateResource('libv86', { status: 'done', progress: 100 });
+      });
+      scriptEl.addEventListener('error', (e) => {
+        updateResource('libv86', { status: 'error', progress: 0, message: '脚本加载失败' });
+      });
+    } else {
+      updateResource('libv86', { status: 'error', progress: 0, message: '未找到 <script> 标签' });
+    }
+
+    // ==================== 初始化渲染 ====================
+    renderResources();
+
+    // ==================== 原有终端逻辑 ====================
     const screenDiv = document.getElementById('screen');
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
-    // 检查 V86 是否加载成功
     if (typeof V86 === 'undefined') {
-      showError('V86 模拟器库加载失败，请检查网络连接或确认 libv86.js 存在于根目录。');
+      showError('V86 模拟器库加载失败，请检查网络或 libv86.js 文件。');
       return;
     }
 
-    // ==================== V86 配置（状态文件启动） ====================
     const config = {
       screen_container: screenDiv,
       state: {
@@ -146,7 +396,6 @@
       return;
     }
 
-    // 捕获 v86 内部错误（如状态文件下载失败、wasm 编译错误等）
     if (emulator && emulator.add_listener) {
       emulator.add_listener('error', function(err) {
         let msg = '模拟器运行时错误';
@@ -156,7 +405,7 @@
       });
     }
 
-    // ==================== 键盘布局（保持不变） ====================
+    // ==================== 键盘布局（完全保留原版） ====================
     const keyRows = [
       {
         keys: [
@@ -441,7 +690,6 @@
         keyboardDiv.style.transform = 'translateX(-50%)';
       }
     });
-
   })();
   </script>
 </body>
