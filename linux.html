@@ -1,315 +1,491 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <title>SwC Linux 终端</title>
   <style>
     body {
       margin: 0;
-      background: #1a1e2b;
-      display: flex;
-      flex-direction: column;
+      background: #000;
       height: 100vh;
+      overflow: hidden;
       font-family: 'JetBrains Mono', monospace;
       user-select: none;
       -webkit-user-select: none;
-      overflow: hidden;
     }
 
-    #log-panel {
-      background: #0d1117;
-      color: #c9d1d9;
-      flex: 0 0 40px;
-      overflow-y: auto;
-      padding: 4px 10px;
-      border-bottom: 2px solid #2a3a4a;
-      font-size: 0.7rem;
-      line-height: 1.3;
-    }
-    .log-info { color: #58a6ff; }
-    .log-error { color: #f85149; }
-    .log-success { color: #3fb950; }
-
-    #screen-container {
-      flex: 1;
-      position: relative;
-      background: #000;
-      min-height: 200px;
-      overflow: hidden;
-    }
-    #screen {
-      width: 100%;
-      height: 100%;
-      border: none;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-
-    /* 键盘容器 */
-    #keyboard {
+    /* 全屏加载浮窗 */
+    #loading-overlay {
       position: fixed;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(42, 46, 59, 0.96);
-      backdrop-filter: blur(6px);
-      padding: 8px 6px 6px;
-      border-radius: 14px;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.96);
+      backdrop-filter: blur(12px);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      transition: opacity 0.3s;
+    }
+    #loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .loading-box {
+      background: #12151c;
+      border: 2px solid #2d333b;
+      border-radius: 16px;
+      padding: 24px;
+      width: 90%;
+      max-width: 480px;
+      box-shadow: 0 0 40px rgba(0,0,0,0.8);
+    }
+    .loading-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      text-align: center;
+      color: #58a6ff;
+    }
+    .file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .file-item {
       display: flex;
       flex-direction: column;
       gap: 3px;
-      box-shadow: 0 8px 22px rgba(0,0,0,0.6);
-      z-index: 100;
-      width: 618px;
-      max-width: 98vw;
-      touch-action: manipulation;
-      box-sizing: border-box;
     }
-
-    .drag-handle {
+    .file-row {
       display: flex;
-      justify-content: center;
-      padding: 2px 0 6px;
-      cursor: grab;
+      justify-content: space-between;
+      align-items: center;
     }
-    .drag-handle:active { cursor: grabbing; }
-    .drag-bar {
-      width: 45px;
-      height: 6px;
-      background: #7a7e8b;
-      border-radius: 3px;
+    .file-name {
+      font-size: 0.85rem;
+      color: #ccc;
     }
-
-    .key-row {
-      display: flex;
-      justify-content: center;
-      width: 100%;
-    }
-
-    .key-btn {
-      background: #3f4352;
-      border: 1px solid #6a6e7b;
-      color: #f0f0f0;
-      width: 40px;
-      height: 40px;
-      border-radius: 5px;
+    .file-status {
       font-size: 0.8rem;
       font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 1px;
-      flex-shrink: 0;
-      cursor: pointer;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-      transition: background 0.1s;
-      box-sizing: border-box;
     }
+    .progress-bar {
+      height: 6px;
+      background: #1e2229;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: #4a6a9e;
+      transition: width 0.2s;
+    }
+    .status-ok { color: #3fb950; }
+    .status-err { color: #f85149; }
+    .status-wait { color: #8b949e; }
+    .status-progress { color: #58a6ff; }
 
+    #close-loading-btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-family: inherit;
+    }
+    #close-loading-btn:hover { background: #30363d; }
+
+    #screen-container {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #000;
+      z-index: 1;
+    }
+    #screen { width: 100%; height: 100%; border: none; }
+
+    #keyboard {
+      position: fixed;
+      width: auto;
+      max-width: 95vw;
+      background: transparent;
+      padding: 4px 6px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      z-index: 100;
+      touch-action: none;
+      box-sizing: border-box;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 8px;
+      will-change: left, top;
+    }
+    .drag-handle { display: flex; justify-content: center; padding: 4px 0; cursor: grab; }
+    .drag-handle:active { cursor: grabbing; }
+    .drag-bar { width: 45px; height: 5px; background: rgba(122,126,139,0.8); border-radius: 3px; }
+    .key-row { display: flex; justify-content: center; width: 100%; }
+    .key-btn {
+      background: #3f4352; border: 1px solid #6a6e7b; color: #f0f0f0;
+      width: 40px; height: 40px; border-radius: 5px; font-size: 0.8rem; font-weight: 600;
+      display: flex; align-items: center; justify-content: center; margin: 0 1px;
+      flex-shrink: 0; cursor: pointer; user-select: none;
+      -webkit-tap-highlight-color: transparent; transition: background 0.1s; box-sizing: border-box;
+    }
     .key-btn:active { background: #5a5e7b; }
     .key-btn.pressed { background: #4a6a9e; }
-
-    .key-btn.w40 { width: 40px; }
-    .key-btn.w60 { width: 60px; }
-    .key-btn.w80 { width: 80px; }
-    .key-btn.w100 { width: 100px; }
-    .key-btn.w220 { width: 220px; }
-
+    .key-btn.w40 { width: 40px; } .key-btn.w60 { width: 60px; } .key-btn.w80 { width: 80px; } .key-btn.w100 { width: 100px; } .key-btn.w220 { width: 220px; }
     .key-btn.active { background: #6a8e4b; border-color: #8ab86a; }
     .key-btn.modifier { background: #3a3a3a; font-size: 0.7rem; }
   </style>
 </head>
 <body>
-  <div id="log-panel"></div>
+  <div id="loading-overlay">
+    <div class="loading-box">
+      <div class="loading-title">📡 系统资源加载状态</div>
+      <div id="file-list" class="file-list">
+        <div class="file-item">
+          <div class="file-row"><span class="file-name">libv86.js</span><span class="file-status status-wait">等待中</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+        </div>
+        <div class="file-item">
+          <div class="file-row"><span class="file-name">v86.wasm</span><span class="file-status status-wait">等待中</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+        </div>
+        <div class="file-item">
+          <div class="file-row"><span class="file-name">状态文件</span><span class="file-status status-wait">等待中</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+        </div>
+        <div class="file-item">
+          <div class="file-row"><span class="file-name">Service Worker</span><span class="file-status status-wait">等待中</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+        </div>
+        <div class="file-item">
+          <div class="file-row"><span class="file-name">V86 引擎</span><span class="file-status status-wait">等待中</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+      <button id="close-loading-btn">关闭浮窗 (可随时关闭)</button>
+    </div>
+  </div>
+
   <div id="screen-container">
     <div id="screen"></div>
   </div>
 
   <div id="keyboard">
-    <div class="drag-handle" id="dragHandle">
-      <div class="drag-bar"></div>
-    </div>
+    <div class="drag-handle" id="dragHandle"><div class="drag-bar"></div></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
+  <!-- 使用绝对路径加载 libv86.js -->
+  <script src="https://archlinux.pages.dev/libv86.js"></script>
   <script>
   (function() {
-    const logPanel = document.getElementById('log-panel');
-    const screenDiv = document.getElementById('screen');
+    const BASE = 'https://archlinux.pages.dev';
+
+    function showAlert(msg) {
+      alert('⚠️ ' + msg);
+    }
+
+    const overlay = document.getElementById('loading-overlay');
+    const fileListContainer = document.getElementById('file-list');
+    const closeBtn = document.getElementById('close-loading-btn');
+
+    const items = [
+      { id: 'libv86', name: 'libv86.js', status: 'pending', progress: 0, message: '' },
+      { id: 'wasm', name: 'v86.wasm', status: 'pending', progress: 0, message: '' },
+      { id: 'state', name: '状态文件 (state.bin)', status: 'pending', progress: 0, message: '' },
+      { id: 'sw', name: 'Service Worker', status: 'pending', progress: 0, message: '' },
+      { id: 'seabios', name: 'seabios.bin (备用)', status: 'pending', progress: 0, message: '' },
+      { id: 'vgabios', name: 'vgabios.bin (备用)', status: 'pending', progress: 0, message: '' },
+      { id: 'v86engine', name: 'V86 引擎启动', status: 'pending', progress: 0, message: '' }
+    ];
+
+    function renderList() {
+      fileListContainer.innerHTML = items.map(item => {
+        let statusClass = 'status-wait';
+        let statusText = '等待中';
+        if (item.status === 'loading') { statusClass = 'status-progress'; statusText = `下载中 ${item.progress}%`; }
+        else if (item.status === 'done') { statusClass = 'status-ok'; statusText = '✅ 完成'; }
+        else if (item.status === 'error') { statusClass = 'status-err'; statusText = '❌ 失败'; }
+        return `
+          <div class="file-item">
+            <div class="file-row">
+              <span class="file-name">${item.name}</span>
+              <span class="file-status ${statusClass}">${statusText}</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width:${item.progress}%"></div>
+            </div>
+            ${item.message ? `<div style="font-size:0.7rem; color:#f85149; margin-top:2px;">${item.message}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateItem(id, data) {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      const prevStatus = item.status;
+      Object.assign(item, data);
+      renderList();
+
+      // 仅在状态变化为 done 或 error 时弹出 alert
+      if ((data.status === 'done' || data.status === 'error') && data.status !== prevStatus) {
+        const msg = data.status === 'done'
+          ? `${item.name} 加载成功`
+          : `${item.name} 失败: ${data.message || '未知错误'}`;
+        showAlert(msg);
+      }
+    }
+
+    renderList();
+
+    closeBtn.addEventListener('click', () => {
+      overlay.classList.add('hidden');
+    });
+
+    // 1. 监控 libv86.js（绝对路径）
+    const scriptEl = document.querySelector('script[src="https://archlinux.pages.dev/libv86.js"]');
+    if (scriptEl) {
+      scriptEl.addEventListener('load', () => {
+        updateItem('libv86', { status: 'done', progress: 100 });
+      });
+      scriptEl.addEventListener('error', () => {
+        updateItem('libv86', { status: 'error', message: '脚本加载失败' });
+      });
+    } else {
+      updateItem('libv86', { status: 'error', message: '未找到 <script> 标签' });
+    }
+
+    // 2. 定义文件 URL（绝对路径）
+    const wasmUrl = BASE + '/v86.wasm';
+    const stateUrl = 'https://stuff.aoodyconcor.de/d/local/robin/v86state.bin?sign=rVokpNP7dAffY5DSjoNBAIRyQkww7sTcTdIbEv3hwqY=:0';
+    const swUrl = BASE + '/sw.js';
+    const seabiosUrl = BASE + '/seabios.bin';
+    const vgabiosUrl = BASE + '/vgabios.bin';
+
+    // 3. 下载进度监控函数
+    function downloadWithProgress(url, itemId) {
+      updateItem(itemId, { status: 'loading', progress: 0 });
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.responseType = 'arraybuffer';
+        xhr.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            updateItem(itemId, { progress: pct });
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status === 200 || xhr.status === 0) {
+            updateItem(itemId, { status: 'done', progress: 100 });
+            resolve(xhr.response);
+          } else {
+            const errMsg = `HTTP ${xhr.status}`;
+            updateItem(itemId, { status: 'error', message: errMsg });
+            reject(new Error(errMsg));
+          }
+        };
+        xhr.onerror = () => {
+          updateItem(itemId, { status: 'error', message: '网络错误' });
+          reject(new Error('网络错误'));
+        };
+        xhr.send();
+      });
+    }
+
+    let wasmBuffer = null;
+    let stateBuffer = null;
+
+    downloadWithProgress(wasmUrl, 'wasm').then(buf => { wasmBuffer = buf; }).catch(err => console.error(err));
+    downloadWithProgress(stateUrl, 'state').then(buf => { stateBuffer = buf; }).catch(err => console.error(err));
+
+    // 拦截 fetch，使用本地 buffer
+    const originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+      const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+      if (url === wasmUrl && wasmBuffer) {
+        return Promise.resolve(new Response(wasmBuffer, { status: 200, headers: { 'Content-Type': 'application/wasm' } }));
+      }
+      if (url === stateUrl && stateBuffer) {
+        return Promise.resolve(new Response(stateBuffer, { status: 200, headers: { 'Content-Type': 'application/octet-stream' } }));
+      }
+      return originalFetch.apply(this, arguments);
+    };
+
+    // 4. Service Worker 注册
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register(swUrl)
+        .then(() => {
+          updateItem('sw', { status: 'done', progress: 100 });
+        })
+        .catch(err => {
+          updateItem('sw', { status: 'error', message: err.message });
+        });
+    } else {
+      updateItem('sw', { status: 'error', message: '不支持 Service Worker' });
+    }
+
+    // 5. seabios / vgabios 存在性检测
+    function checkFileExists(url, itemId) {
+      fetch(url, { method: 'HEAD' })
+        .then(res => {
+          if (res.ok) {
+            updateItem(itemId, { status: 'done', progress: 100, message: '文件存在 (未使用)' });
+          } else {
+            throw new Error(`HTTP ${res.status}`);
+          }
+        })
+        .catch(err => {
+          updateItem(itemId, { status: 'error', message: err.message });
+        });
+    }
+    checkFileExists(seabiosUrl, 'seabios');
+    checkFileExists(vgabiosUrl, 'vgabios');
+
+    // 6. 初始化 V86
+    function initV86() {
+      if (typeof V86 === 'undefined') {
+        updateItem('v86engine', { status: 'error', message: 'V86 未定义' });
+        return;
+      }
+      updateItem('v86engine', { status: 'loading', message: '正在初始化...' });
+
+      const screenDiv = document.getElementById('screen');
+      const config = {
+        screen_container: screenDiv,
+        state: { url: stateUrl },
+        wasm_path: wasmUrl,
+        autostart: true,
+        disable_keyboard: false,
+        disable_speaker: true,
+        acpi: true,
+        memory_size: 1024,
+      };
+
+      try {
+        const emulator = new V86(config);
+        window.emulator = emulator;
+        if (emulator.add_listener) {
+          emulator.add_listener('emulator-started', () => {
+            updateItem('v86engine', { status: 'done', progress: 100, message: '系统已启动' });
+          });
+          emulator.add_listener('error', (err) => {
+            const msg = err?.message || err;
+            updateItem('v86engine', { status: 'error', message: msg });
+          });
+        } else {
+          setTimeout(() => {
+            if (items.find(i => i.id === 'v86engine').status === 'loading') {
+              updateItem('v86engine', { status: 'done', progress: 100, message: '启动中...' });
+            }
+          }, 8000);
+        }
+      } catch (e) {
+        updateItem('v86engine', { status: 'error', message: e.message });
+      }
+    }
+
+    // 等待关键文件后启动 V86
+    Promise.all([
+      downloadWithProgress(wasmUrl, 'wasm'),
+      downloadWithProgress(stateUrl, 'state')
+    ]).then(() => {
+      initV86();
+    }).catch(() => {
+      // 即使下载失败也尝试启动
+      initV86();
+    });
+
+    // ========== 虚拟键盘逻辑（完整保留） ==========
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
-    function log(msg, type = 'info') {
-      const item = document.createElement('div');
-      item.className = `log-${type}`;
-      item.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-      logPanel.appendChild(item);
-      logPanel.scrollTop = logPanel.scrollHeight;
-    }
-
-    // ========== V86 初始化 ==========
-    if (typeof V86 === 'undefined') {
-      log('V86 库加载失败', 'error');
-      return;
-    }
-    log('V86 库加载成功', 'success');
-
-    const config = {
-      screen_container: screenDiv,
-      bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
-      vga_bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin" },
-      cdrom: { url: "https://cdn.jsdelivr.net/gh/copy/images@master/linux.iso" },
-      wasm_path: "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
-      autostart: true,
-      disable_keyboard: false,
-      disable_speaker: true,
-      acpi: true,
-    };
-
-    let emulator;
-    try {
-      emulator = new V86(config);
-      log('模拟器已创建', 'success');
-    } catch (e) {
-      log('模拟器创建失败: ' + e.message, 'error');
-      return;
-    }
-
-    emulator.add_listener("emulator-loaded", () => {
-      log('终端就绪，登录：root / 空密码', 'success');
-    });
-    emulator.add_listener("error", e => log('模拟器错误: ' + (e.message || e), 'error'));
-
-    // ========== 键盘布局数据 ==========
     const keyRows = [
-      // F1-F12
-      {
-        keys: [
-          { label: 'F1',  code: 'F1',  extraClass: 'w40 modifier' },
-          { label: 'F2',  code: 'F2',  extraClass: 'w40 modifier' },
-          { label: 'F3',  code: 'F3',  extraClass: 'w40 modifier' },
-          { label: 'F4',  code: 'F4',  extraClass: 'w40 modifier' },
-          { label: 'F5',  code: 'F5',  extraClass: 'w40 modifier' },
-          { label: 'F6',  code: 'F6',  extraClass: 'w40 modifier' },
-          { label: 'F7',  code: 'F7',  extraClass: 'w40 modifier' },
-          { label: 'F8',  code: 'F8',  extraClass: 'w40 modifier' },
-          { label: 'F9',  code: 'F9',  extraClass: 'w40 modifier' },
-          { label: 'F10', code: 'F10', extraClass: 'w40 modifier' },
-          { label: 'F11', code: 'F11', extraClass: 'w40 modifier' },
-          { label: 'F12', code: 'F12', extraClass: 'w40 modifier' },
-        ]
-      },
-      // 数字行
-      {
-        keys: [
-          { label: 'Esc', code: 'Escape',    extraClass: 'w40 modifier' },
-          { label: '`',   shiftLabel: '~',  code: 'Backquote', extraClass: 'w40' },
-          { label: '1',   shiftLabel: '!',  code: 'Digit1',    extraClass: 'w40' },
-          { label: '2',   shiftLabel: '@',  code: 'Digit2',    extraClass: 'w40' },
-          { label: '3',   shiftLabel: '#',  code: 'Digit3',    extraClass: 'w40' },
-          { label: '4',   shiftLabel: '$',  code: 'Digit4',    extraClass: 'w40' },
-          { label: '5',   shiftLabel: '%',  code: 'Digit5',    extraClass: 'w40' },
-          { label: '6',   shiftLabel: '^',  code: 'Digit6',    extraClass: 'w40' },
-          { label: '7',   shiftLabel: '&',  code: 'Digit7',    extraClass: 'w40' },
-          { label: '8',   shiftLabel: '*',  code: 'Digit8',    extraClass: 'w40' },
-          { label: '9',   shiftLabel: '(',  code: 'Digit9',    extraClass: 'w40' },
-          { label: '0',   shiftLabel: ')',  code: 'Digit0',    extraClass: 'w40' },
-          { label: '-',   shiftLabel: '_',  code: 'Minus',     extraClass: 'w40' },
-          { label: '=',   shiftLabel: '+',  code: 'Equal',     extraClass: 'w40' },
-          { label: '⌫',   code: 'Backspace', extraClass: 'w60 modifier' },
-        ]
-      },
-      // QWERTY 行
-      {
-        keys: [
-          { label: 'Tab', code: 'Tab',  extraClass: 'w60 modifier' },
-          { label: 'q',   shiftLabel: 'Q',  code: 'KeyQ', extraClass: 'w40' },
-          { label: 'w',   shiftLabel: 'W',  code: 'KeyW', extraClass: 'w40' },
-          { label: 'e',   shiftLabel: 'E',  code: 'KeyE', extraClass: 'w40' },
-          { label: 'r',   shiftLabel: 'R',  code: 'KeyR', extraClass: 'w40' },
-          { label: 't',   shiftLabel: 'T',  code: 'KeyT', extraClass: 'w40' },
-          { label: 'y',   shiftLabel: 'Y',  code: 'KeyY', extraClass: 'w40' },
-          { label: 'u',   shiftLabel: 'U',  code: 'KeyU', extraClass: 'w40' },
-          { label: 'i',   shiftLabel: 'I',  code: 'KeyI', extraClass: 'w40' },
-          { label: 'o',   shiftLabel: 'O',  code: 'KeyO', extraClass: 'w40' },
-          { label: 'p',   shiftLabel: 'P',  code: 'KeyP', extraClass: 'w40' },
-          { label: '[',   shiftLabel: '{',  code: 'BracketLeft',  extraClass: 'w40' },
-          { label: ']',   shiftLabel: '}',  code: 'BracketRight', extraClass: 'w40' },
-          { label: '\\',  shiftLabel: '|',  code: 'Backslash',    extraClass: 'w40' },
-          { label: 'Del', code: 'Delete', extraClass: 'w40 modifier' },
-        ]
-      },
-      // ASDF 行
-      {
-        keys: [
-          { label: 'Caps', code: 'CapsLock', caps: true, extraClass: 'w80 modifier' },
-          { label: 'a',    shiftLabel: 'A',  code: 'KeyA', extraClass: 'w40' },
-          { label: 's',    shiftLabel: 'S',  code: 'KeyS', extraClass: 'w40' },
-          { label: 'd',    shiftLabel: 'D',  code: 'KeyD', extraClass: 'w40' },
-          { label: 'f',    shiftLabel: 'F',  code: 'KeyF', extraClass: 'w40' },
-          { label: 'g',    shiftLabel: 'G',  code: 'KeyG', extraClass: 'w40' },
-          { label: 'h',    shiftLabel: 'H',  code: 'KeyH', extraClass: 'w40' },
-          { label: 'j',    shiftLabel: 'J',  code: 'KeyJ', extraClass: 'w40' },
-          { label: 'k',    shiftLabel: 'K',  code: 'KeyK', extraClass: 'w40' },
-          { label: 'l',    shiftLabel: 'L',  code: 'KeyL', extraClass: 'w40' },
-          { label: ';',    shiftLabel: ':',  code: 'Semicolon', extraClass: 'w40' },
-          { label: "'",    shiftLabel: '"',  code: 'Quote',     extraClass: 'w40' },
-          { label: 'Enter', code: 'Enter', extraClass: 'w100 modifier' },
-        ]
-      },
-      // ZXCV 行
-      {
-        keys: [
-          { label: 'Shift', code: 'ShiftLeft',  shift: true, extraClass: 'w100 modifier' },
-          { label: 'z',     shiftLabel: 'Z',     code: 'KeyZ', extraClass: 'w40' },
-          { label: 'x',     shiftLabel: 'X',     code: 'KeyX', extraClass: 'w40' },
-          { label: 'c',     shiftLabel: 'C',     code: 'KeyC', extraClass: 'w40' },
-          { label: 'v',     shiftLabel: 'V',     code: 'KeyV', extraClass: 'w40' },
-          { label: 'b',     shiftLabel: 'B',     code: 'KeyB', extraClass: 'w40' },
-          { label: 'n',     shiftLabel: 'N',     code: 'KeyN', extraClass: 'w40' },
-          { label: 'm',     shiftLabel: 'M',     code: 'KeyM', extraClass: 'w40' },
-          { label: ',',     shiftLabel: '<',     code: 'Comma',  extraClass: 'w40' },
-          { label: '.',     shiftLabel: '>',     code: 'Period', extraClass: 'w40' },
-          { label: '/',     shiftLabel: '?',     code: 'Slash',  extraClass: 'w40' },
-          { label: '↑',     code: 'ArrowUp',     extraClass: 'w40' },
-          { label: 'Shift', code: 'ShiftRight', shift: true, extraClass: 'w80 modifier' },
-        ]
-      },
-      // 底行
-      {
-        keys: [
-          { label: 'Fn',    code: 'Fn',            extraClass: 'w40 modifier' },
-          { label: 'Ctrl',  code: 'ControlLeft',   extraClass: 'w40 modifier' },
-          { label: 'Win',   code: 'MetaLeft',      extraClass: 'w40 modifier' },
-          { label: 'Alt',   code: 'AltLeft',       extraClass: 'w40 modifier' },
-          { label: 'Space', code: 'Space',         extraClass: 'w220' },
-          { label: 'Alt',   code: 'AltRight',      extraClass: 'w40 modifier' },
-          { label: 'Ctrl',  code: 'ControlRight',  extraClass: 'w40 modifier' },
-          { label: '←',     code: 'ArrowLeft',     extraClass: 'w40' },
-          { label: '↓',     code: 'ArrowDown',     extraClass: 'w40' },
-          { label: '→',     code: 'ArrowRight',    extraClass: 'w40' },
-          { label: 'Fn',    code: 'Fn',            extraClass: 'w40 modifier' },
-        ]
-      }
+      { keys: [
+        { label:'F1', key:'F1', code:'F1', extraClass:'w40 modifier' }, { label:'F2', key:'F2', code:'F2', extraClass:'w40 modifier' },
+        { label:'F3', key:'F3', code:'F3', extraClass:'w40 modifier' }, { label:'F4', key:'F4', code:'F4', extraClass:'w40 modifier' },
+        { label:'F5', key:'F5', code:'F5', extraClass:'w40 modifier' }, { label:'F6', key:'F6', code:'F6', extraClass:'w40 modifier' },
+        { label:'F7', key:'F7', code:'F7', extraClass:'w40 modifier' }, { label:'F8', key:'F8', code:'F8', extraClass:'w40 modifier' },
+        { label:'F9', key:'F9', code:'F9', extraClass:'w40 modifier' }, { label:'F10', key:'F10', code:'F10', extraClass:'w40 modifier' },
+        { label:'F11', key:'F11', code:'F11', extraClass:'w40 modifier' }, { label:'F12', key:'F12', code:'F12', extraClass:'w40 modifier' }
+      ]},
+      { keys: [
+        { label:'Esc', key:'Escape', code:'Escape', extraClass:'w40 modifier' }, { label:'`', key:'`', code:'Backquote', extraClass:'w40', shiftLabel:'~' },
+        { label:'1', key:'1', code:'Digit1', extraClass:'w40', shiftLabel:'!' }, { label:'2', key:'2', code:'Digit2', extraClass:'w40', shiftLabel:'@' },
+        { label:'3', key:'3', code:'Digit3', extraClass:'w40', shiftLabel:'#' }, { label:'4', key:'4', code:'Digit4', extraClass:'w40', shiftLabel:'$' },
+        { label:'5', key:'5', code:'Digit5', extraClass:'w40', shiftLabel:'%' }, { label:'6', key:'6', code:'Digit6', extraClass:'w40', shiftLabel:'^' },
+        { label:'7', key:'7', code:'Digit7', extraClass:'w40', shiftLabel:'&' }, { label:'8', key:'8', code:'Digit8', extraClass:'w40', shiftLabel:'*' },
+        { label:'9', key:'9', code:'Digit9', extraClass:'w40', shiftLabel:'(' }, { label:'0', key:'0', code:'Digit0', extraClass:'w40', shiftLabel:')' },
+        { label:'-', key:'-', code:'Minus', extraClass:'w40', shiftLabel:'_' }, { label:'=', key:'=', code:'Equal', extraClass:'w40', shiftLabel:'+' },
+        { label:'⌫', key:'Backspace', code:'Backspace', extraClass:'w60 modifier' }
+      ]},
+      { keys: [
+        { label:'Tab', key:'Tab', code:'Tab', extraClass:'w60 modifier' }, { label:'q', key:'q', code:'KeyQ', extraClass:'w40', shiftLabel:'Q' },
+        { label:'w', key:'w', code:'KeyW', extraClass:'w40', shiftLabel:'W' }, { label:'e', key:'e', code:'KeyE', extraClass:'w40', shiftLabel:'E' },
+        { label:'r', key:'r', code:'KeyR', extraClass:'w40', shiftLabel:'R' }, { label:'t', key:'t', code:'KeyT', extraClass:'w40', shiftLabel:'T' },
+        { label:'y', key:'y', code:'KeyY', extraClass:'w40', shiftLabel:'Y' }, { label:'u', key:'u', code:'KeyU', extraClass:'w40', shiftLabel:'U' },
+        { label:'i', key:'i', code:'KeyI', extraClass:'w40', shiftLabel:'I' }, { label:'o', key:'o', code:'KeyO', extraClass:'w40', shiftLabel:'O' },
+        { label:'p', key:'p', code:'KeyP', extraClass:'w40', shiftLabel:'P' }, { label:'[', key:'[', code:'BracketLeft', extraClass:'w40', shiftLabel:'{' },
+        { label:']', key:']', code:'BracketRight', extraClass:'w40', shiftLabel:'}' }, { label:'\\', key:'\\', code:'Backslash', extraClass:'w40', shiftLabel:'|' },
+        { label:'Del', key:'Delete', code:'Delete', extraClass:'w40 modifier' }
+      ]},
+      { keys: [
+        { label:'Caps', key:'CapsLock', code:'CapsLock', caps:true, extraClass:'w80 modifier' }, { label:'a', key:'a', code:'KeyA', extraClass:'w40', shiftLabel:'A' },
+        { label:'s', key:'s', code:'KeyS', extraClass:'w40', shiftLabel:'S' }, { label:'d', key:'d', code:'KeyD', extraClass:'w40', shiftLabel:'D' },
+        { label:'f', key:'f', code:'KeyF', extraClass:'w40', shiftLabel:'F' }, { label:'g', key:'g', code:'KeyG', extraClass:'w40', shiftLabel:'G' },
+        { label:'h', key:'h', code:'KeyH', extraClass:'w40', shiftLabel:'H' }, { label:'j', key:'j', code:'KeyJ', extraClass:'w40', shiftLabel:'J' },
+        { label:'k', key:'k', code:'KeyK', extraClass:'w40', shiftLabel:'K' }, { label:'l', key:'l', code:'KeyL', extraClass:'w40', shiftLabel:'L' },
+        { label:';', key:';', code:'Semicolon', extraClass:'w40', shiftLabel:':' }, { label:"'", key:"'", code:'Quote', extraClass:'w40', shiftLabel:'"' },
+        { label:'Enter', key:'Enter', code:'Enter', extraClass:'w100 modifier' }
+      ]},
+      { keys: [
+        { label:'Shift', key:'Shift', code:'ShiftLeft', shift:true, extraClass:'w100 modifier' }, { label:'z', key:'z', code:'KeyZ', extraClass:'w40', shiftLabel:'Z' },
+        { label:'x', key:'x', code:'KeyX', extraClass:'w40', shiftLabel:'X' }, { label:'c', key:'c', code:'KeyC', extraClass:'w40', shiftLabel:'C' },
+        { label:'v', key:'v', code:'KeyV', extraClass:'w40', shiftLabel:'V' }, { label:'b', key:'b', code:'KeyB', extraClass:'w40', shiftLabel:'B' },
+        { label:'n', key:'n', code:'KeyN', extraClass:'w40', shiftLabel:'N' }, { label:'m', key:'m', code:'KeyM', extraClass:'w40', shiftLabel:'M' },
+        { label:',', key:',', code:'Comma', extraClass:'w40', shiftLabel:'<' }, { label:'.', key:'.', code:'Period', extraClass:'w40', shiftLabel:'>' },
+        { label:'/', key:'/', code:'Slash', extraClass:'w40', shiftLabel:'?' }, { label:'↑', key:'ArrowUp', code:'ArrowUp', extraClass:'w40' },
+        { label:'Shift', key:'Shift', code:'ShiftRight', shift:true, extraClass:'w80 modifier' }
+      ]},
+      { keys: [
+        { label:'Fn', key:'Fn', code:'Fn', extraClass:'w40 modifier' }, { label:'Ctrl', key:'Control', code:'ControlLeft', extraClass:'w40 modifier' },
+        { label:'Win', key:'Meta', code:'MetaLeft', extraClass:'w40 modifier' }, { label:'Alt', key:'Alt', code:'AltLeft', extraClass:'w40 modifier' },
+        { label:'Space', key:' ', code:'Space', extraClass:'w220' }, { label:'Alt', key:'Alt', code:'AltRight', extraClass:'w40 modifier' },
+        { label:'Ctrl', key:'Control', code:'ControlRight', extraClass:'w40 modifier' }, { label:'←', key:'ArrowLeft', code:'ArrowLeft', extraClass:'w40' },
+        { label:'↓', key:'ArrowDown', code:'ArrowDown', extraClass:'w40' }, { label:'→', key:'ArrowRight', code:'ArrowRight', extraClass:'w40' },
+        { label:'Fn', key:'Fn', code:'Fn', extraClass:'w40 modifier' }
+      ]}
     ];
 
-    // ========== 键盘交互 ==========
     const pressedKeys = new Set();
     let capsActive = false;
     const allButtons = [];
 
     function dispatchKeyEvent(type, code, key, keyCode) {
-      if (!emulator) return;
+      if (!window.emulator) return;
+      if (keyCode === 0 && key && key.length === 1) keyCode = key.charCodeAt(0);
       const event = new KeyboardEvent(type, {
-        key, code, keyCode, which: keyCode,
-        bubbles: true, cancelable: true, view: window,
+        key, code, keyCode, which: keyCode, bubbles: true, cancelable: true, view: window,
         location: code.includes('Left') ? 1 : (code.includes('Right') ? 2 : 0),
       });
-      Object.defineProperty(event, 'charCode', { value: keyCode });
-      screenDiv.dispatchEvent(event);
+      if (type === 'keypress') Object.defineProperty(event, 'charCode', { value: keyCode });
+      document.getElementById('screen').dispatchEvent(event);
     }
 
     function updateButtonLabels() {
@@ -317,20 +493,17 @@
       allButtons.forEach(btn => {
         const kd = btn._keyData;
         if (!kd) return;
-        if (kd.shift) {
-          btn.textContent = shift ? '▲ Shift' : 'Shift';
-        } else if (kd.caps) {
-          btn.textContent = capsActive ? '▲ Caps' : 'Caps';
-        } else {
-          const useShift = (shift || capsActive) && kd.shiftLabel && kd.code?.startsWith('Key');
-          btn.textContent = useShift && kd.shiftLabel ? kd.shiftLabel : kd.label;
+        if (kd.shift) btn.textContent = shift ? '▲ Shift' : 'Shift';
+        else if (kd.caps) btn.textContent = capsActive ? '▲ Caps' : 'Caps';
+        else {
+          const useShift = (shift || capsActive) && kd.shiftLabel;
+          btn.textContent = useShift ? kd.shiftLabel : kd.label;
         }
       });
     }
 
     function onPointerDown(e, keyData, btn) {
-      e.preventDefault();
-      e.stopPropagation();  // 防止干扰其他元素
+      e.preventDefault(); e.stopPropagation();
       const code = keyData.code;
       if (keyData.caps) {
         capsActive = !capsActive;
@@ -340,11 +513,19 @@
         updateButtonLabels();
         return;
       }
-      if (!pressedKeys.has(code)) {
-        pressedKeys.add(code);
-        const key = keyData.shift ? 'Shift' : keyData.label;
-        const keyCode = keyData.shift ? 16 : 0;
-        dispatchKeyEvent('keydown', code, key, keyCode);
+      const key = keyData.shift ? 'Shift' : keyData.key;
+      const keyCode = keyData.shift ? 16 : 0;
+      if (code === 'Space') {
+        dispatchKeyEvent('keydown', code, ' ', 32);
+        dispatchKeyEvent('keypress', code, ' ', 32);
+        dispatchKeyEvent('keyup', code, ' ', 32);
+        updateButtonLabels();
+        return;
+      }
+      pressedKeys.add(code);
+      dispatchKeyEvent('keydown', code, key, keyCode);
+      if (!keyData.shift && !keyData.caps && key && key.length === 1) {
+        dispatchKeyEvent('keypress', code, key, key.charCodeAt(0));
       }
       btn.classList.add('pressed');
       updateButtonLabels();
@@ -353,19 +534,9 @@
     function onPointerUp(e, keyData, btn) {
       e.preventDefault();
       const code = keyData.code;
-      let stillPressed = false;
-      for (const otherBtn of allButtons) {
-        if (otherBtn._keyData.code === code && otherBtn.classList.contains('pressed')) {
-          stillPressed = true;
-          break;
-        }
-      }
-      if (!stillPressed) {
-        pressedKeys.delete(code);
-        const key = keyData.shift ? 'Shift' : keyData.label;
-        const keyCode = keyData.shift ? 16 : 0;
-        dispatchKeyEvent('keyup', code, key, keyCode);
-      }
+      if (code === 'Space') return;
+      pressedKeys.delete(code);
+      dispatchKeyEvent('keyup', code, keyData.shift ? 'Shift' : keyData.key, keyData.shift ? 16 : 0);
       btn.classList.remove('pressed');
       updateButtonLabels();
     }
@@ -377,7 +548,9 @@
       btn._keyData = keyData;
       btn.addEventListener('pointerdown', e => onPointerDown(e, keyData, btn));
       btn.addEventListener('pointerup', e => onPointerUp(e, keyData, btn));
-      btn.addEventListener('pointerleave', e => onPointerUp(e, keyData, btn));
+      btn.addEventListener('pointerleave', e => {
+        if (btn.classList.contains('pressed')) onPointerUp(e, keyData, btn);
+      });
       return btn;
     }
 
@@ -397,54 +570,45 @@
     }
 
     buildKeyboard();
-    log('键盘就绪', 'success');
 
-    // ========== 拖动逻辑（优化） ==========
-    let dragging = false, startX, startY, startLeft, startTop;
-    dragHandle.addEventListener('pointerdown', e => {
+    let dragging = false, startX, startY, initialLeft, initialTop;
+    function startDrag(e) {
       e.preventDefault();
       dragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
+      startX = e.clientX; startY = e.clientY;
       const rect = keyboardDiv.getBoundingClientRect();
-      startLeft = rect.left;
-      startTop = rect.top;
-      keyboardDiv.style.transition = 'none';
+      initialLeft = rect.left; initialTop = rect.top;
       keyboardDiv.style.transform = 'none';
-      keyboardDiv.style.left = startLeft + 'px';
-      keyboardDiv.style.top = startTop + 'px';
+      keyboardDiv.style.left = initialLeft + 'px';
+      keyboardDiv.style.top = initialTop + 'px';
       keyboardDiv.style.bottom = 'auto';
       dragHandle.setPointerCapture(e.pointerId);
-    });
-    document.addEventListener('pointermove', e => {
+    }
+    function moveDrag(e) {
       if (!dragging) return;
       e.preventDefault();
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      let newLeft = startLeft + dx;
-      let newTop = startTop + dy;
+      let left = initialLeft + e.clientX - startX;
+      let top = initialTop + e.clientY - startY;
       const maxLeft = window.innerWidth - keyboardDiv.offsetWidth;
       const maxTop = window.innerHeight - keyboardDiv.offsetHeight;
-      newLeft = Math.max(0, Math.min(newLeft, maxLeft));
-      newTop = Math.max(0, Math.min(newTop, maxTop));
-      keyboardDiv.style.left = newLeft + 'px';
-      keyboardDiv.style.top = newTop + 'px';
-    });
-    document.addEventListener('pointerup', () => {
-      if (dragging) {
-        dragging = false;
-        keyboardDiv.style.transition = '';
+      keyboardDiv.style.left = Math.max(0, Math.min(left, maxLeft)) + 'px';
+      keyboardDiv.style.top = Math.max(0, Math.min(top, maxTop)) + 'px';
+    }
+    function endDrag() { dragging = false; }
+    dragHandle.addEventListener('pointerdown', startDrag);
+    document.addEventListener('pointermove', moveDrag);
+    document.addEventListener('pointerup', endDrag);
+
+    keyboardDiv.style.left = '50%';
+    keyboardDiv.style.top = 'auto';
+    keyboardDiv.style.bottom = '8px';
+    keyboardDiv.style.transform = 'translateX(-50%)';
+    window.addEventListener('resize', () => {
+      if (!dragging) {
+        keyboardDiv.style.left = '50%';
+        keyboardDiv.style.transform = 'translateX(-50%)';
       }
     });
-
-    function positionKeyboard() {
-      keyboardDiv.style.left = '50%';
-      keyboardDiv.style.transform = 'translateX(-50%)';
-      keyboardDiv.style.bottom = '10px';
-      keyboardDiv.style.top = 'auto';
-    }
-    positionKeyboard();
-    window.addEventListener('resize', positionKeyboard);
   })();
   </script>
 </body>
