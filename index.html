@@ -3,37 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-  <title>SwC Linux 终端（修复空格输入）</title>
+  <title>SwC Linux 终端</title>
   <style>
     body {
       margin: 0;
-      background: #1a1e2b;
+      background: #000;
       height: 100vh;
-      display: flex;
-      flex-direction: column;
+      overflow: hidden;
       font-family: 'JetBrains Mono', monospace;
       user-select: none;
       -webkit-user-select: none;
-      overflow: hidden;
     }
 
+    /* 终端全屏固定，无边距 */
     #screen-container {
-      flex: 1;
-      position: relative;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       background: #000;
-      min-height: 0;
-      overflow: hidden;
+      z-index: 1;
     }
 
     #screen {
       width: 100%;
       height: 100%;
       border: none;
-      position: absolute;
-      top: 0;
-      left: 0;
     }
 
+    /* 键盘透明浮动，初始水平居中，可自由拖动 */
     #keyboard {
       position: fixed;
       width: auto;
@@ -49,6 +48,7 @@
       left: 50%;
       transform: translateX(-50%);
       bottom: 8px;
+      will-change: left, top;
     }
 
     .drag-handle {
@@ -123,9 +123,9 @@
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
-    // ========== V86 初始化 ==========
     if (typeof V86 === 'undefined') return;
 
+    // ========== V86 配置（屏幕自动填充容器） ==========
     const config = {
       screen_container: screenDiv,
       bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
@@ -136,12 +136,15 @@
       disable_keyboard: false,
       disable_speaker: true,
       acpi: true,
+      // 让终端填满整个屏幕容器
+      screen_width: window.innerWidth,
+      screen_height: window.innerHeight,
     };
 
     let emulator;
     try { emulator = new V86(config); } catch (e) { return; }
 
-    // ========== 键盘布局（空格 key 为 ' '） ==========
+    // ========== 键盘布局 ==========
     const keyRows = [
       {
         keys: [
@@ -252,10 +255,8 @@
     let capsActive = false;
     const allButtons = [];
 
-    // ========== 修复：增强的事件派发（支持 keypress 和正确 keyCode） ==========
     function dispatchKeyEvent(type, code, key, keyCode) {
       if (!emulator) return;
-      // 如果是可打印字符（长度1）且 keyCode 未指定，则自动计算 ASCII
       if (keyCode === 0 && key && key.length === 1) {
         keyCode = key.charCodeAt(0);
       }
@@ -269,7 +270,6 @@
         view: window,
         location: code.includes('Left') ? 1 : (code.includes('Right') ? 2 : 0),
       });
-      // 对 keypress 额外设置 charCode
       if (type === 'keypress') {
         Object.defineProperty(event, 'charCode', { value: keyCode });
       }
@@ -306,16 +306,22 @@
         return;
       }
 
-      pressedKeys.add(code);
       const key = keyData.shift ? 'Shift' : keyData.key;
       const keyCode = keyData.shift ? 16 : 0;
 
-      // 发送 keydown
+      // 对于空格键，直接发送完整的按下释放序列，避免卡键
+      if (code === 'Space') {
+        dispatchKeyEvent('keydown', code, key, 32);
+        dispatchKeyEvent('keypress', code, key, 32);
+        dispatchKeyEvent('keyup', code, key, 32);
+        updateButtonLabels();
+        return;
+      }
+
+      pressedKeys.add(code);
       dispatchKeyEvent('keydown', code, key, keyCode);
 
-      // 如果是可打印字符（非修饰键，且 key 长度为 1），发送 keypress
       if (!keyData.shift && !keyData.caps && key && key.length === 1) {
-        // keypress 使用字符的 ASCII 码作为 keyCode 和 charCode
         const charCode = key.charCodeAt(0);
         dispatchKeyEvent('keypress', code, key, charCode);
       }
@@ -327,6 +333,7 @@
     function onPointerUp(e, keyData, btn) {
       e.preventDefault();
       const code = keyData.code;
+      if (code === 'Space') return; // 空格已经在按下时处理完毕
 
       pressedKeys.delete(code);
       const key = keyData.shift ? 'Shift' : keyData.key;
@@ -369,29 +376,37 @@
 
     buildKeyboard();
 
-    // ========== 拖动 ==========
+    // ========== 二维拖动（恢复横向移动） ==========
     let dragging = false;
-    let startY;
-    let initialTop;
+    let startX, startY, initialLeft, initialTop;
 
     function startDrag(e) {
       e.preventDefault();
       dragging = true;
+      startX = e.clientX;
       startY = e.clientY;
       const rect = keyboardDiv.getBoundingClientRect();
+      initialLeft = rect.left;
       initialTop = rect.top;
-      keyboardDiv.style.bottom = 'auto';
+      keyboardDiv.style.transform = 'none';
+      keyboardDiv.style.left = initialLeft + 'px';
       keyboardDiv.style.top = initialTop + 'px';
+      keyboardDiv.style.bottom = 'auto';
       dragHandle.setPointerCapture(e.pointerId);
     }
 
     function moveDrag(e) {
       if (!dragging) return;
       e.preventDefault();
+      const dx = e.clientX - startX;
       const dy = e.clientY - startY;
+      let newLeft = initialLeft + dx;
       let newTop = initialTop + dy;
+      const maxLeft = window.innerWidth - keyboardDiv.offsetWidth;
       const maxTop = window.innerHeight - keyboardDiv.offsetHeight;
+      newLeft = Math.max(0, Math.min(newLeft, maxLeft));
       newTop = Math.max(0, Math.min(newTop, maxTop));
+      keyboardDiv.style.left = newLeft + 'px';
       keyboardDiv.style.top = newTop + 'px';
     }
 
@@ -404,10 +419,20 @@
     document.addEventListener('pointermove', moveDrag);
     document.addEventListener('pointerup', endDrag);
 
-    keyboardDiv.style.bottom = '8px';
-    keyboardDiv.style.top = 'auto';
+    // 初始居中
     keyboardDiv.style.left = '50%';
+    keyboardDiv.style.top = 'auto';
+    keyboardDiv.style.bottom = '8px';
     keyboardDiv.style.transform = 'translateX(-50%)';
+
+    // 窗口大小改变时，重新限制键盘位置
+    window.addEventListener('resize', () => {
+      if (!dragging) {
+        // 保持居中，仅当未拖动时
+        keyboardDiv.style.left = '50%';
+        keyboardDiv.style.transform = 'translateX(-50%)';
+      }
+    });
 
   })();
   </script>
