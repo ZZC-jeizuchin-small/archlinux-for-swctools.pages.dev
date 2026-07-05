@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
@@ -15,7 +15,6 @@
       -webkit-user-select: none;
     }
 
-    /* 终端全屏固定，无边距 */
     #screen-container {
       position: fixed;
       top: 0;
@@ -32,7 +31,6 @@
       border: none;
     }
 
-    /* 键盘透明浮动，初始水平居中，可自由拖动 */
     #keyboard {
       position: fixed;
       width: auto;
@@ -116,35 +114,44 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
+  <!-- 使用本地 libv86 -->
+  <script src="./libv86.js"></script>
   <script>
   (function() {
     const screenDiv = document.getElementById('screen');
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
-    if (typeof V86 === 'undefined') return;
+    if (typeof V86 === 'undefined') {
+      console.error('V86 未加载');
+      return;
+    }
 
-    // ========== V86 配置（屏幕自动填充容器） ==========
+    // ========== V86 配置（使用状态文件启动） ==========
     const config = {
       screen_container: screenDiv,
-      bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
-      vga_bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin" },
-      cdrom: { url: "https://cdn.jsdelivr.net/gh/copy/images@master/linux.iso" },
-      wasm_path: "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
+      // 状态文件包含完整系统快照，不再需要 BIOS、VGA BIOS 或 ISO
+      state: {
+        url: "https://stuff.aoodyconcor.de/d/local/robin/v86state.bin?sign=rVokpNP7dAffY5DSjoNBAIRyQkww7sTcTdIbEv3hwqY=:0"
+      },
+      wasm_path: "./v86.wasm",
       autostart: true,
       disable_keyboard: false,
       disable_speaker: true,
       acpi: true,
-      // 让终端填满整个屏幕容器
-      screen_width: window.innerWidth,
-      screen_height: window.innerHeight,
+      // 内存大小需与保存状态时一致，这里设为 1024 MB
+      memory_size: 1024,
     };
 
     let emulator;
-    try { emulator = new V86(config); } catch (e) { return; }
+    try {
+      emulator = new V86(config);
+    } catch (e) {
+      console.error('初始化 v86 失败:', e);
+      return;
+    }
 
-    // ========== 键盘布局 ==========
+    // ========== 键盘布局（保持不变） ==========
     const keyRows = [
       {
         keys: [
@@ -309,7 +316,6 @@
       const key = keyData.shift ? 'Shift' : keyData.key;
       const keyCode = keyData.shift ? 16 : 0;
 
-      // 对于空格键，直接发送完整的按下释放序列，避免卡键
       if (code === 'Space') {
         dispatchKeyEvent('keydown', code, key, 32);
         dispatchKeyEvent('keypress', code, key, 32);
@@ -333,7 +339,7 @@
     function onPointerUp(e, keyData, btn) {
       e.preventDefault();
       const code = keyData.code;
-      if (code === 'Space') return; // 空格已经在按下时处理完毕
+      if (code === 'Space') return;
 
       pressedKeys.delete(code);
       const key = keyData.shift ? 'Shift' : keyData.key;
@@ -376,7 +382,7 @@
 
     buildKeyboard();
 
-    // ========== 二维拖动（恢复横向移动） ==========
+    // ========== 二维拖动 ==========
     let dragging = false;
     let startX, startY, initialLeft, initialTop;
 
@@ -419,16 +425,13 @@
     document.addEventListener('pointermove', moveDrag);
     document.addEventListener('pointerup', endDrag);
 
-    // 初始居中
     keyboardDiv.style.left = '50%';
     keyboardDiv.style.top = 'auto';
     keyboardDiv.style.bottom = '8px';
     keyboardDiv.style.transform = 'translateX(-50%)';
 
-    // 窗口大小改变时，重新限制键盘位置
     window.addEventListener('resize', () => {
       if (!dragging) {
-        // 保持居中，仅当未拖动时
         keyboardDiv.style.left = '50%';
         keyboardDiv.style.transform = 'translateX(-50%)';
       }
