@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <title>SwC Linux 终端</title>
   <style>
     body {
@@ -15,19 +15,111 @@
       -webkit-user-select: none;
     }
 
+    /* ========== 全屏加载浮窗 ========== */
+    #loading-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.92);
+      backdrop-filter: blur(8px);
+      z-index: 300;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #ccc;
+      font-size: 0.9rem;
+      padding: 20px;
+      box-sizing: border-box;
+      transition: opacity 0.3s;
+    }
+    #loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .loading-panel {
+      background: #111318;
+      border: 1px solid #2d3139;
+      border-radius: 16px;
+      padding: 28px 24px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    }
+    .loading-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #fff;
+      text-align: center;
+    }
+    .file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .file-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .file-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .file-name {
+      font-weight: 500;
+      color: #aaa;
+    }
+    .file-status {
+      font-size: 0.8rem;
+    }
+    .progress-bar {
+      height: 6px;
+      background: #1f2228;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: #4a6a9e;
+      transition: width 0.3s;
+    }
+    .status-ok { color: #3fb950; }
+    .status-err { color: #f85149; }
+    .status-wait { color: #8b949e; }
+    .status-loading { color: #58a6ff; }
+
+    .close-btn {
+      display: block;
+      margin: 0 auto;
+      padding: 10px 32px;
+      background: #2d3139;
+      color: #ccc;
+      border: 1px solid #4a4f59;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-family: inherit;
+    }
+    .close-btn:hover { background: #3d424d; }
+
+    /* 终端屏幕容器 */
     #screen-container {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       background: #000;
       z-index: 1;
     }
-
     #screen {
       width: 100%; height: 100%;
       border: none;
     }
 
-    /* 键盘样式保持不变 */
+    /* 虚拟键盘样式保持不变 */
     #keyboard {
       position: fixed;
       width: auto;
@@ -83,80 +175,18 @@
     .key-btn.w220 { width: 220px; }
     .key-btn.active { background: #6a8e4b; border-color: #8ab86a; }
     .key-btn.modifier { background: #3a3a3a; font-size: 0.7rem; }
-
-    /* ---------- 资源监控浮窗 ---------- */
-    #resource-monitor {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      width: 320px;
-      max-width: calc(100vw - 20px);
-      background: rgba(10, 12, 16, 0.92);
-      backdrop-filter: blur(12px);
-      border: 1px solid #3a3d48;
-      border-radius: 12px;
-      z-index: 200;
-      padding: 16px;
-      font-size: 0.82rem;
-      color: #ccc;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    #monitor-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-weight: 700;
-      color: #fff;
-    }
-    #monitor-close {
-      background: none;
-      border: none;
-      color: #888;
-      font-size: 1.2rem;
-      cursor: pointer;
-      padding: 0 4px;
-      line-height: 1;
-    }
-    .resource-item {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-    .resource-label {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .resource-name {
-      font-weight: 500;
-      color: #aaa;
-    }
-    .resource-status {
-      font-size: 0.75rem;
-    }
-    .progress-bar-bg {
-      height: 6px;
-      background: #2a2d35;
-      border-radius: 3px;
-      overflow: hidden;
-      margin-top: 2px;
-    }
-    .progress-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: #4a6a9e;
-      transition: width 0.3s;
-    }
-    .status-ok { color: #3fb950; }
-    .status-err { color: #f85149; }
-    .status-wait { color: #8b949e; }
-    .status-progress { color: #58a6ff; }
   </style>
 </head>
 <body>
+  <!-- 全屏加载浮窗 -->
+  <div id="loading-overlay">
+    <div class="loading-panel">
+      <div class="loading-title">📡 正在加载系统资源</div>
+      <div class="file-list" id="file-list"></div>
+      <button class="close-btn" id="close-loading-btn">关闭浮窗 (可随时关闭)</button>
+    </div>
+  </div>
+
   <div id="screen-container">
     <div id="screen"></div>
   </div>
@@ -167,56 +197,43 @@
     </div>
   </div>
 
-  <!-- 资源监控浮窗 -->
-  <div id="resource-monitor">
-    <div id="monitor-header">
-      <span>📡 文件加载状态</span>
-      <button id="monitor-close" title="关闭面板">✖</button>
-    </div>
-    <div id="resource-list"></div>
-  </div>
-
   <script src="./libv86.js"></script>
   <script>
   (function() {
-    // ==================== 资源监控 ====================
-    const monitor = document.getElementById('resource-monitor');
-    const closeBtn = document.getElementById('monitor-close');
-    const resourceList = document.getElementById('resource-list');
+    // ==================== 全屏加载浮窗逻辑 ====================
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const closeBtn = document.getElementById('close-loading-btn');
+    const fileListEl = document.getElementById('file-list');
 
-    // 需要监控的6个文件
-    const resourceDefs = [
+    // 定义监控的6个文件以及v86引擎状态
+    const items = [
       { id: 'libv86', name: 'libv86.js', type: 'script' },
       { id: 'wasm', name: 'v86.wasm', type: 'fetch', url: './v86.wasm' },
       { id: 'state', name: '状态文件 (state.bin)', type: 'fetch', url: 'https://stuff.aoodyconcor.de/d/local/robin/v86state.bin?sign=rVokpNP7dAffY5DSjoNBAIRyQkww7sTcTdIbEv3hwqY=:0' },
       { id: 'sw', name: 'Service Worker (sw.js)', type: 'sw' },
-      { id: 'seabios', name: 'seabios.bin (仅检测)', type: 'head', url: './seabios.bin' },
-      { id: 'vgabios', name: 'vgabios.bin (仅检测)', type: 'head', url: './vgabios.bin' },
+      { id: 'seabios', name: 'seabios.bin (未使用)', type: 'head', url: './seabios.bin' },
+      { id: 'vgabios', name: 'vgabios.bin (未使用)', type: 'head', url: './vgabios.bin' },
+      { id: 'v86engine', name: 'V86 引擎初始化', type: 'engine' }
     ];
 
-    const resources = {};
-    resourceDefs.forEach(r => {
-      resources[r.id] = {
-        ...r,
-        status: 'pending', // pending, loading, done, error
-        progress: 0,
-        message: ''
-      };
+    const state = {};
+    items.forEach(item => {
+      state[item.id] = { status: 'pending', progress: 0, message: '' };
     });
 
-    function renderResources() {
-      resourceList.innerHTML = resourceDefs.map(r => {
-        const res = resources[r.id];
+    function renderLoadingUI() {
+      fileListEl.innerHTML = items.map(item => {
+        const s = state[item.id];
         let statusText = '';
         let statusClass = '';
-        switch (res.status) {
+        switch (s.status) {
           case 'pending':
             statusText = '等待中';
             statusClass = 'status-wait';
             break;
           case 'loading':
-            statusText = `下载中 ${res.progress}%`;
-            statusClass = 'status-progress';
+            statusText = `下载中 ${s.progress}%`;
+            statusClass = 'status-loading';
             break;
           case 'done':
             statusText = '✅ 完成';
@@ -228,52 +245,49 @@
             break;
         }
         return `
-          <div class="resource-item">
-            <div class="resource-label">
-              <span class="resource-name">${r.name}</span>
-              <span class="resource-status ${statusClass}">${statusText}</span>
+          <div class="file-item">
+            <div class="file-label">
+              <span class="file-name">${item.name}</span>
+              <span class="file-status ${statusClass}">${statusText}</span>
             </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" style="width:${res.progress}%"></div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width:${s.progress}%"></div>
             </div>
-            ${res.message ? `<div style="font-size:0.7rem; color:#f85149; margin-top:2px;">${res.message}</div>` : ''}
+            ${s.message ? `<div style="font-size:0.7rem; color:#f85149; margin-top:2px;">${s.message}</div>` : ''}
           </div>
         `;
       }).join('');
     }
 
-    function updateResource(id, updates) {
-      Object.assign(resources[id], updates);
-      renderResources();
+    function updateItem(id, updates) {
+      Object.assign(state[id], updates);
+      renderLoadingUI();
     }
 
-    // 关闭浮窗
+    // 关闭浮窗事件
     closeBtn.addEventListener('click', () => {
-      monitor.style.display = 'none';
+      loadingOverlay.classList.add('hidden');
     });
 
-    // ==================== 错误处理 ====================
-    function showError(message) {
-      console.error('[SwC Terminal]', message);
-      alert('⚠️ 错误：' + message);
-    }
+    // 允许用户在加载过程中查看状态，即使关闭后也可重新打开？但这里仅提供一次关闭。
+    // 如果希望用户能再次打开，可以保留，但需求是“提供按钮去关闭它”，所以一次性关闭。
 
-    // ==================== Service Worker 注册 ====================
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => {
-          console.log('[SW] 注册成功:', reg.scope);
-          updateResource('sw', { status: 'done', progress: 100 });
-        })
-        .catch(err => {
-          updateResource('sw', { status: 'error', progress: 0, message: err.message });
-          console.warn('SW 注册失败:', err.message);
-        });
+    // ==================== 资源监控实现 ====================
+
+    // 1. libv86.js 加载监听
+    const scriptEl = document.querySelector('script[src="./libv86.js"]');
+    if (scriptEl) {
+      scriptEl.addEventListener('load', () => {
+        updateItem('libv86', { status: 'done', progress: 100 });
+      });
+      scriptEl.addEventListener('error', () => {
+        updateItem('libv86', { status: 'error', progress: 0, message: '脚本加载失败' });
+      });
     } else {
-      updateResource('sw', { status: 'error', progress: 0, message: '浏览器不支持 Service Worker' });
+      updateItem('libv86', { status: 'error', progress: 0, message: '未找到 <script> 标签' });
     }
 
-    // ==================== 包装 fetch 监控 wasm 和 state 下载 ====================
+    // 2. 包装 fetch 监控 wasm 和 state 下载进度
     const originalFetch = window.fetch;
     const monitoredUrls = {
       './v86.wasm': 'wasm',
@@ -285,7 +299,7 @@
       const resourceId = monitoredUrls[requestUrl];
 
       if (resourceId) {
-        updateResource(resourceId, { status: 'loading', progress: 0 });
+        updateItem(resourceId, { status: 'loading', progress: 0 });
         try {
           const response = await originalFetch.call(window, input, init);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -307,7 +321,7 @@
                   loaded += value.length;
                   if (total) {
                     const percent = Math.round((loaded / total) * 100);
-                    updateResource(resourceId, { progress: percent });
+                    updateItem(resourceId, { progress: percent });
                   }
                   controller.enqueue(value);
                 }
@@ -322,58 +336,67 @@
             statusText: response.statusText,
             headers: response.headers
           });
-          updateResource(resourceId, { status: 'done', progress: 100 });
+          updateItem(resourceId, { status: 'done', progress: 100 });
           return newResponse;
         } catch (err) {
-          updateResource(resourceId, { status: 'error', progress: 0, message: err.message });
+          updateItem(resourceId, { status: 'error', progress: 0, message: err.message });
           throw err;
         }
       }
       return originalFetch.call(window, input, init);
     };
 
-    // ==================== 检测 seabios 和 vgabios 是否存在（HEAD 请求） ====================
+    // 3. Service Worker 注册
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js')
+        .then(() => {
+          updateItem('sw', { status: 'done', progress: 100 });
+        })
+        .catch(err => {
+          updateItem('sw', { status: 'error', progress: 0, message: err.message });
+        });
+    } else {
+      updateItem('sw', { status: 'error', progress: 0, message: '浏览器不支持' });
+    }
+
+    // 4. seabios / vgabios 存在性检测（HEAD 请求）
     async function checkHead(id, url) {
       try {
-        updateResource(id, { status: 'loading' });
+        updateItem(id, { status: 'loading' });
         const resp = await originalFetch(url, { method: 'HEAD' });
         if (resp.ok) {
-          updateResource(id, { status: 'done', progress: 100, message: '文件可用 (未使用)' });
+          updateItem(id, { status: 'done', progress: 100, message: '文件可用（未使用）' });
         } else {
           throw new Error(`HTTP ${resp.status}`);
         }
       } catch (err) {
-        updateResource(id, { status: 'error', progress: 0, message: err.message });
+        updateItem(id, { status: 'error', progress: 0, message: err.message });
       }
     }
     checkHead('seabios', './seabios.bin');
     checkHead('vgabios', './vgabios.bin');
 
-    // ==================== libv86.js 加载监控 ====================
-    const scriptEl = document.querySelector('script[src="./libv86.js"]');
-    if (scriptEl) {
-      scriptEl.addEventListener('load', () => {
-        updateResource('libv86', { status: 'done', progress: 100 });
-      });
-      scriptEl.addEventListener('error', (e) => {
-        updateResource('libv86', { status: 'error', progress: 0, message: '脚本加载失败' });
-      });
-    } else {
-      updateResource('libv86', { status: 'error', progress: 0, message: '未找到 <script> 标签' });
+    // 初始渲染
+    renderLoadingUI();
+
+    // ==================== 错误提示 ====================
+    function showError(message) {
+      console.error('[SwC Terminal]', message);
+      alert('⚠️ 错误：' + message);
     }
 
-    // ==================== 初始化渲染 ====================
-    renderResources();
-
-    // ==================== 原有终端逻辑 ====================
+    // ==================== v86 初始化 ====================
     const screenDiv = document.getElementById('screen');
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
     if (typeof V86 === 'undefined') {
-      showError('V86 模拟器库加载失败，请检查网络或 libv86.js 文件。');
+      updateItem('v86engine', { status: 'error', progress: 0, message: 'V86 库未加载' });
+      showError('V86 模拟器库加载失败，请检查网络或确认 libv86.js 存在。');
       return;
     }
+
+    updateItem('v86engine', { status: 'loading', message: '正在创建模拟器...' });
 
     const config = {
       screen_container: screenDiv,
@@ -391,21 +414,35 @@
     let emulator;
     try {
       emulator = new V86(config);
+      updateItem('v86engine', { status: 'loading', message: '模拟器已创建，等待启动...' });
     } catch (e) {
+      updateItem('v86engine', { status: 'error', progress: 0, message: e.message });
       showError('初始化模拟器失败：' + e.message);
       return;
     }
 
+    // 监听 v86 引擎事件
     if (emulator && emulator.add_listener) {
+      emulator.add_listener('emulator-started', () => {
+        updateItem('v86engine', { status: 'done', progress: 100, message: '系统已启动' });
+      });
       emulator.add_listener('error', function(err) {
         let msg = '模拟器运行时错误';
         if (err && err.message) msg += '：' + err.message;
         else if (typeof err === 'string') msg += '：' + err;
+        updateItem('v86engine', { status: 'error', progress: 0, message: msg });
         showError(msg);
       });
+    } else {
+      // 降级处理：一段时间后标记为完成
+      setTimeout(() => {
+        if (state['v86engine'].status === 'loading') {
+          updateItem('v86engine', { status: 'done', progress: 100, message: '已启动（状态未知）' });
+        }
+      }, 8000);
     }
 
-    // ==================== 键盘布局（完全保留原版） ====================
+    // ==================== 键盘布局（与原版完全一致） ====================
     const keyRows = [
       {
         keys: [
@@ -690,6 +727,7 @@
         keyboardDiv.style.transform = 'translateX(-50%)';
       }
     });
+
   })();
   </script>
 </body>
