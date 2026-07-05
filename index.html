@@ -14,23 +14,16 @@
       user-select: none;
       -webkit-user-select: none;
     }
-
     #screen-container {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
       background: #000;
       z-index: 1;
     }
-
     #screen {
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       border: none;
     }
-
     #keyboard {
       position: fixed;
       width: auto;
@@ -48,39 +41,27 @@
       bottom: 8px;
       will-change: left, top;
     }
-
     .drag-handle {
-      display: flex;
-      justify-content: center;
-      padding: 4px 0;
-      cursor: grab;
+      display: flex; justify-content: center;
+      padding: 4px 0; cursor: grab;
     }
     .drag-handle:active { cursor: grabbing; }
     .drag-bar {
-      width: 45px;
-      height: 5px;
-      background: rgba(122, 126, 139, 0.8);
+      width: 45px; height: 5px;
+      background: rgba(122,126,139,0.8);
       border-radius: 3px;
     }
-
     .key-row {
-      display: flex;
-      justify-content: center;
-      width: 100%;
+      display: flex; justify-content: center; width: 100%;
     }
-
     .key-btn {
       background: #3f4352;
       border: 1px solid #6a6e7b;
       color: #f0f0f0;
-      width: 40px;
-      height: 40px;
+      width: 40px; height: 40px;
       border-radius: 5px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      font-size: 0.8rem; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
       margin: 0 1px;
       flex-shrink: 0;
       cursor: pointer;
@@ -89,16 +70,13 @@
       transition: background 0.1s;
       box-sizing: border-box;
     }
-
     .key-btn:active { background: #5a5e7b; }
     .key-btn.pressed { background: #4a6a9e; }
-
     .key-btn.w40 { width: 40px; }
     .key-btn.w60 { width: 60px; }
     .key-btn.w80 { width: 80px; }
     .key-btn.w100 { width: 100px; }
     .key-btn.w220 { width: 220px; }
-
     .key-btn.active { background: #6a8e4b; border-color: #8ab86a; }
     .key-btn.modifier { background: #3a3a3a; font-size: 0.7rem; }
   </style>
@@ -114,23 +92,41 @@
     </div>
   </div>
 
-  <!-- 使用本地 libv86 -->
   <script src="./libv86.js"></script>
   <script>
   (function() {
+    // ==================== 错误处理辅助函数 ====================
+    function showError(message) {
+      console.error('[SwC Terminal]', message);
+      alert('⚠️ 错误：' + message);
+    }
+
+    // ==================== 注册 Service Worker ====================
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => {
+          console.log('[SW] 注册成功，作用域:', reg.scope);
+        })
+        .catch(err => {
+          showError('Service Worker 注册失败，离线缓存可能不可用：' + err.message);
+        });
+    } else {
+      console.warn('当前浏览器不支持 Service Worker，无法离线使用。');
+    }
+
     const screenDiv = document.getElementById('screen');
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
+    // 检查 V86 是否加载成功
     if (typeof V86 === 'undefined') {
-      console.error('V86 未加载');
+      showError('V86 模拟器库加载失败，请检查网络连接或确认 libv86.js 存在于根目录。');
       return;
     }
 
-    // ========== V86 配置（使用状态文件启动） ==========
+    // ==================== V86 配置（状态文件启动） ====================
     const config = {
       screen_container: screenDiv,
-      // 状态文件包含完整系统快照，不再需要 BIOS、VGA BIOS 或 ISO
       state: {
         url: "https://stuff.aoodyconcor.de/d/local/robin/v86state.bin?sign=rVokpNP7dAffY5DSjoNBAIRyQkww7sTcTdIbEv3hwqY=:0"
       },
@@ -139,7 +135,6 @@
       disable_keyboard: false,
       disable_speaker: true,
       acpi: true,
-      // 内存大小需与保存状态时一致，这里设为 1024 MB
       memory_size: 1024,
     };
 
@@ -147,11 +142,21 @@
     try {
       emulator = new V86(config);
     } catch (e) {
-      console.error('初始化 v86 失败:', e);
+      showError('初始化模拟器失败：' + e.message);
       return;
     }
 
-    // ========== 键盘布局（保持不变） ==========
+    // 捕获 v86 内部错误（如状态文件下载失败、wasm 编译错误等）
+    if (emulator && emulator.add_listener) {
+      emulator.add_listener('error', function(err) {
+        let msg = '模拟器运行时错误';
+        if (err && err.message) msg += '：' + err.message;
+        else if (typeof err === 'string') msg += '：' + err;
+        showError(msg);
+      });
+    }
+
+    // ==================== 键盘布局（保持不变） ====================
     const keyRows = [
       {
         keys: [
