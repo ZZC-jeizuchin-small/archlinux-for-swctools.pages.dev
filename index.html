@@ -8,36 +8,23 @@
     body {
       margin: 0;
       background: #1a1e2b;
+      height: 100vh;
       display: flex;
       flex-direction: column;
-      height: 100vh;
       font-family: 'JetBrains Mono', monospace;
       user-select: none;
       -webkit-user-select: none;
       overflow: hidden;
     }
 
-    #log-panel {
-      background: #0d1117;
-      color: #c9d1d9;
-      flex: 0 0 40px;
-      overflow-y: auto;
-      padding: 4px 10px;
-      border-bottom: 2px solid #2a3a4a;
-      font-size: 0.7rem;
-      line-height: 1.3;
-    }
-    .log-info { color: #58a6ff; }
-    .log-error { color: #f85149; }
-    .log-success { color: #3fb950; }
-
     #screen-container {
       flex: 1;
       position: relative;
       background: #000;
-      min-height: 200px;
+      min-height: 0;
       overflow: hidden;
     }
+
     #screen {
       width: 100%;
       height: 100%;
@@ -50,34 +37,33 @@
     /* 键盘容器 */
     #keyboard {
       position: fixed;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
+      width: 620px;
       background: rgba(42, 46, 59, 0.96);
       backdrop-filter: blur(6px);
-      padding: 8px 6px 6px;
+      padding: 8px 6px 10px;
       border-radius: 14px;
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 4px;
       box-shadow: 0 8px 22px rgba(0,0,0,0.6);
       z-index: 100;
-      width: 618px;
-      max-width: 98vw;
-      touch-action: manipulation;
+      touch-action: none;
       box-sizing: border-box;
+      left: 50%;
+      bottom: 8px;
+      transform: translateX(-50%);
     }
 
     .drag-handle {
       display: flex;
       justify-content: center;
-      padding: 2px 0 6px;
+      padding: 4px 0;
       cursor: grab;
     }
     .drag-handle:active { cursor: grabbing; }
     .drag-bar {
       width: 45px;
-      height: 6px;
+      height: 5px;
       background: #7a7e8b;
       border-radius: 3px;
     }
@@ -123,7 +109,6 @@
   </style>
 </head>
 <body>
-  <div id="log-panel"></div>
   <div id="screen-container">
     <div id="screen"></div>
   </div>
@@ -137,25 +122,12 @@
   <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
   <script>
   (function() {
-    const logPanel = document.getElementById('log-panel');
     const screenDiv = document.getElementById('screen');
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
-    function log(msg, type = 'info') {
-      const item = document.createElement('div');
-      item.className = `log-${type}`;
-      item.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-      logPanel.appendChild(item);
-      logPanel.scrollTop = logPanel.scrollHeight;
-    }
-
     // ========== V86 初始化 ==========
-    if (typeof V86 === 'undefined') {
-      log('V86 库加载失败', 'error');
-      return;
-    }
-    log('V86 库加载成功', 'success');
+    if (typeof V86 === 'undefined') return;
 
     const config = {
       screen_container: screenDiv,
@@ -172,16 +144,9 @@
     let emulator;
     try {
       emulator = new V86(config);
-      log('模拟器已创建', 'success');
     } catch (e) {
-      log('模拟器创建失败: ' + e.message, 'error');
       return;
     }
-
-    emulator.add_listener("emulator-loaded", () => {
-      log('终端就绪，登录：root / 空密码', 'success');
-    });
-    emulator.add_listener("error", e => log('模拟器错误: ' + (e.message || e), 'error'));
 
     // ========== 键盘布局数据 ==========
     const keyRows = [
@@ -322,16 +287,17 @@
         } else if (kd.caps) {
           btn.textContent = capsActive ? '▲ Caps' : 'Caps';
         } else {
-          const useShift = (shift || capsActive) && kd.shiftLabel && kd.code?.startsWith('Key');
-          btn.textContent = useShift && kd.shiftLabel ? kd.shiftLabel : kd.label;
+          const useShift = (shift || capsActive) && kd.shiftLabel;
+          btn.textContent = useShift ? kd.shiftLabel : kd.label;
         }
       });
     }
 
     function onPointerDown(e, keyData, btn) {
       e.preventDefault();
-      e.stopPropagation();  // 防止干扰其他元素
+      e.stopPropagation();
       const code = keyData.code;
+
       if (keyData.caps) {
         capsActive = !capsActive;
         btn.classList.toggle('active', capsActive);
@@ -340,12 +306,12 @@
         updateButtonLabels();
         return;
       }
-      if (!pressedKeys.has(code)) {
-        pressedKeys.add(code);
-        const key = keyData.shift ? 'Shift' : keyData.label;
-        const keyCode = keyData.shift ? 16 : 0;
-        dispatchKeyEvent('keydown', code, key, keyCode);
-      }
+
+      pressedKeys.add(code);
+      const key = keyData.shift ? 'Shift' : keyData.label;
+      const keyCode = keyData.shift ? 16 : 0;
+      dispatchKeyEvent('keydown', code, key, keyCode);
+
       btn.classList.add('pressed');
       updateButtonLabels();
     }
@@ -353,19 +319,12 @@
     function onPointerUp(e, keyData, btn) {
       e.preventDefault();
       const code = keyData.code;
-      let stillPressed = false;
-      for (const otherBtn of allButtons) {
-        if (otherBtn._keyData.code === code && otherBtn.classList.contains('pressed')) {
-          stillPressed = true;
-          break;
-        }
-      }
-      if (!stillPressed) {
-        pressedKeys.delete(code);
-        const key = keyData.shift ? 'Shift' : keyData.label;
-        const keyCode = keyData.shift ? 16 : 0;
-        dispatchKeyEvent('keyup', code, key, keyCode);
-      }
+
+      pressedKeys.delete(code);
+      const key = keyData.shift ? 'Shift' : keyData.label;
+      const keyCode = keyData.shift ? 16 : 0;
+      dispatchKeyEvent('keyup', code, key, keyCode);
+
       btn.classList.remove('pressed');
       updateButtonLabels();
     }
@@ -377,7 +336,11 @@
       btn._keyData = keyData;
       btn.addEventListener('pointerdown', e => onPointerDown(e, keyData, btn));
       btn.addEventListener('pointerup', e => onPointerUp(e, keyData, btn));
-      btn.addEventListener('pointerleave', e => onPointerUp(e, keyData, btn));
+      btn.addEventListener('pointerleave', e => {
+        if (btn.classList.contains('pressed')) {
+          onPointerUp(e, keyData, btn);
+        }
+      });
       return btn;
     }
 
@@ -397,54 +360,64 @@
     }
 
     buildKeyboard();
-    log('键盘就绪', 'success');
 
-    // ========== 拖动逻辑（优化） ==========
-    let dragging = false, startX, startY, startLeft, startTop;
-    dragHandle.addEventListener('pointerdown', e => {
+    // ========== 稳定的拖动逻辑 ==========
+    let dragging = false;
+    let dragStartX, dragStartY;
+    let initialLeft, initialTop;
+
+    function startDrag(e) {
       e.preventDefault();
       dragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      // 获取当前位置（已经是绝对定位的 left/top）
       const rect = keyboardDiv.getBoundingClientRect();
-      startLeft = rect.left;
-      startTop = rect.top;
-      keyboardDiv.style.transition = 'none';
+      initialLeft = rect.left;
+      initialTop = rect.top;
+      // 移除可能的 transform，直接使用 left/top 定位
       keyboardDiv.style.transform = 'none';
-      keyboardDiv.style.left = startLeft + 'px';
-      keyboardDiv.style.top = startTop + 'px';
+      keyboardDiv.style.left = initialLeft + 'px';
+      keyboardDiv.style.top = initialTop + 'px';
       keyboardDiv.style.bottom = 'auto';
       dragHandle.setPointerCapture(e.pointerId);
-    });
-    document.addEventListener('pointermove', e => {
+    }
+
+    function moveDrag(e) {
       if (!dragging) return;
       e.preventDefault();
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      let newLeft = startLeft + dx;
-      let newTop = startTop + dy;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+      // 边界限制
       const maxLeft = window.innerWidth - keyboardDiv.offsetWidth;
       const maxTop = window.innerHeight - keyboardDiv.offsetHeight;
       newLeft = Math.max(0, Math.min(newLeft, maxLeft));
       newTop = Math.max(0, Math.min(newTop, maxTop));
       keyboardDiv.style.left = newLeft + 'px';
       keyboardDiv.style.top = newTop + 'px';
-    });
-    document.addEventListener('pointerup', () => {
-      if (dragging) {
-        dragging = false;
-        keyboardDiv.style.transition = '';
-      }
-    });
-
-    function positionKeyboard() {
-      keyboardDiv.style.left = '50%';
-      keyboardDiv.style.transform = 'translateX(-50%)';
-      keyboardDiv.style.bottom = '10px';
-      keyboardDiv.style.top = 'auto';
     }
-    positionKeyboard();
-    window.addEventListener('resize', positionKeyboard);
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+    }
+
+    dragHandle.addEventListener('pointerdown', startDrag);
+    document.addEventListener('pointermove', moveDrag);
+    document.addEventListener('pointerup', endDrag);
+
+    // 初始定位到底部居中
+    function initialPosition() {
+      keyboardDiv.style.left = '50%';
+      keyboardDiv.style.top = 'auto';
+      keyboardDiv.style.bottom = '8px';
+      keyboardDiv.style.transform = 'translateX(-50%)';
+    }
+    initialPosition();
+    window.addEventListener('resize', initialPosition);
+
   })();
   </script>
 </body>
