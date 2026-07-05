@@ -16,23 +16,20 @@
       -webkit-user-select: none;
       overflow: hidden;
     }
+
     #log-panel {
       background: #0d1117;
       color: #c9d1d9;
-      flex: 0 0 80px;
+      flex: 0 0 40px;
       overflow-y: auto;
-      padding: 6px 10px;
+      padding: 4px 10px;
       border-bottom: 2px solid #2a3a4a;
       font-size: 0.7rem;
       line-height: 1.3;
-      white-space: pre-wrap;
-      word-break: break-all;
     }
-    .log-item { margin-bottom: 2px; }
+    .log-info { color: #58a6ff; }
     .log-error { color: #f85149; }
     .log-success { color: #3fb950; }
-    .log-info { color: #58a6ff; }
-    .log-debug { color: #aaa; }
 
     #screen-container {
       flex: 1;
@@ -50,394 +47,405 @@
       left: 0;
     }
 
-    /* 浮动键盘 */
+    /* 键盘容器 */
     #keyboard {
       position: fixed;
-      bottom: 30px;
+      bottom: 10px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(42, 46, 59, 0.95);
-      backdrop-filter: blur(5px);
-      padding: 8px 6px;
-      border-radius: 12px;
+      background: rgba(42, 46, 59, 0.96);
+      backdrop-filter: blur(6px);
+      padding: 8px 6px 6px;
+      border-radius: 14px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      gap: 3px;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.6);
       z-index: 100;
-      min-width: 320px;
-      max-width: 95vw;
-      touch-action: none;
+      width: 618px;
+      max-width: 98vw;
+      touch-action: manipulation;
+      box-sizing: border-box;
     }
-    .keyboard-header {
+
+    .drag-handle {
       display: flex;
       justify-content: center;
-      align-items: center;
-      padding: 2px 0 4px;
+      padding: 2px 0 6px;
       cursor: grab;
     }
-    .keyboard-header:active {
-      cursor: grabbing;
-    }
-    .drag-handle {
-      width: 40px;
+    .drag-handle:active { cursor: grabbing; }
+    .drag-bar {
+      width: 45px;
       height: 6px;
-      background: #5a5e6b;
+      background: #7a7e8b;
       border-radius: 3px;
     }
+
     .key-row {
       display: flex;
       justify-content: center;
-      gap: 3px;
-      flex-wrap: nowrap;
+      width: 100%;
     }
+
     .key-btn {
-      background: #3a3e4b;
-      border: 1px solid #5a5e6b;
-      color: #e0e0e0;
-      padding: 10px 4px;
+      background: #3f4352;
+      border: 1px solid #6a6e7b;
+      color: #f0f0f0;
+      width: 40px;
+      height: 40px;
       border-radius: 5px;
       font-size: 0.8rem;
       font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 1px;
+      flex-shrink: 0;
       cursor: pointer;
-      text-align: center;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
       transition: background 0.1s;
-      flex: 0 0 auto;
-      min-width: 22px;
-      touch-action: manipulation;
+      box-sizing: border-box;
     }
-    .key-btn:active {
-      background: #5a5e7b;
-    }
-    .key-btn.wide {
-      min-width: 45px;
-    }
-    .key-btn.space {
-      flex: 1;
-      min-width: 70px;
-    }
-    .key-btn.active {
-      background: #6a8e4b;
-      border-color: #8ab86a;
-    }
-    .key-btn.highlight {
-      background: #4a6e8b;
-    }
+
+    .key-btn:active { background: #5a5e7b; }
+    .key-btn.pressed { background: #4a6a9e; }
+
+    .key-btn.w40 { width: 40px; }
+    .key-btn.w60 { width: 60px; }
+    .key-btn.w80 { width: 80px; }
+    .key-btn.w100 { width: 100px; }
+    .key-btn.w220 { width: 220px; }
+
+    .key-btn.active { background: #6a8e4b; border-color: #8ab86a; }
+    .key-btn.modifier { background: #3a3a3a; font-size: 0.7rem; }
   </style>
 </head>
 <body>
-<div id="log-panel">
-  <div class="log-item log-info">[系统] 初始化中...</div>
-</div>
-<div id="screen-container">
-  <div id="screen"></div>
-</div>
-<div id="keyboard">
-  <div class="keyboard-header" id="dragHandle">
-    <div class="drag-handle"></div>
+  <div id="log-panel"></div>
+  <div id="screen-container">
+    <div id="screen"></div>
   </div>
-  <!-- 键盘由JS动态生成 -->
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
-<script>
-(function() {
-  const logPanel = document.getElementById('log-panel');
-  const screenDiv = document.getElementById('screen');
-  const keyboardDiv = document.getElementById('keyboard');
-  const dragHandle = document.getElementById('dragHandle');
+  <div id="keyboard">
+    <div class="drag-handle" id="dragHandle">
+      <div class="drag-bar"></div>
+    </div>
+  </div>
 
-  function log(msg, type = 'info') {
-    const item = document.createElement('div');
-    item.className = `log-item log-${type}`;
-    item.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-    logPanel.appendChild(item);
-    logPanel.scrollTop = logPanel.scrollHeight;
-  }
+  <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
+  <script>
+  (function() {
+    const logPanel = document.getElementById('log-panel');
+    const screenDiv = document.getElementById('screen');
+    const keyboardDiv = document.getElementById('keyboard');
+    const dragHandle = document.getElementById('dragHandle');
 
-  if (typeof V86 === 'undefined') { log('V86 库加载失败', 'error'); return; }
-  log('V86 库加载成功', 'success');
+    function log(msg, type = 'info') {
+      const item = document.createElement('div');
+      item.className = `log-${type}`;
+      item.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logPanel.appendChild(item);
+      logPanel.scrollTop = logPanel.scrollHeight;
+    }
 
-  const config = {
-    screen_container: screenDiv,
-    bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
-    vga_bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin" },
-    cdrom: { url: "https://cdn.jsdelivr.net/gh/copy/images@master/linux.iso" },
-    wasm_path: "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
-    autostart: true,
-    disable_keyboard: false,
-    disable_speaker: true,
-    acpi: true,
-  };
+    // ========== V86 初始化 ==========
+    if (typeof V86 === 'undefined') {
+      log('V86 库加载失败', 'error');
+      return;
+    }
+    log('V86 库加载成功', 'success');
 
-  let emulator;
-  try {
-    emulator = new V86(config);
-    log('模拟器实例已创建', 'success');
-  } catch (e) {
-    log('创建模拟器实例失败: ' + e.message, 'error');
-    return;
-  }
-
-  emulator.add_listener("emulator-loaded", () => {
-    log('模拟器已启动！命令行就绪。', 'success');
-    log('拖动键盘顶部手柄移动位置', 'info');
-  });
-  emulator.add_listener("error", (e) => log('模拟器错误: ' + (e.message || e), 'error'));
-
-  // ========== 虚拟键盘定义 ==========
-  const keyRows = [
-    // 第一行：数字/符号
-    [
-      {label:'`', shiftLabel:'~', code:'Backquote', key:'`', shiftKey:'~', keyCode:192},
-      {label:'1', shiftLabel:'!', code:'Digit1', key:'1', shiftKey:'!', keyCode:49},
-      {label:'2', shiftLabel:'@', code:'Digit2', key:'2', shiftKey:'@', keyCode:50},
-      {label:'3', shiftLabel:'#', code:'Digit3', key:'3', shiftKey:'#', keyCode:51},
-      {label:'4', shiftLabel:'$', code:'Digit4', key:'4', shiftKey:'$', keyCode:52},
-      {label:'5', shiftLabel:'%', code:'Digit5', key:'5', shiftKey:'%', keyCode:53},
-      {label:'6', shiftLabel:'^', code:'Digit6', key:'6', shiftKey:'^', keyCode:54},
-      {label:'7', shiftLabel:'&', code:'Digit7', key:'7', shiftKey:'&', keyCode:55},
-      {label:'8', shiftLabel:'*', code:'Digit8', key:'8', shiftKey:'*', keyCode:56},
-      {label:'9', shiftLabel:'(', code:'Digit9', key:'9', shiftKey:'(', keyCode:57},
-      {label:'0', shiftLabel:')', code:'Digit0', key:'0', shiftKey:')', keyCode:48},
-      {label:'-', shiftLabel:'_', code:'Minus', key:'-', shiftKey:'_', keyCode:173},
-      {label:'=', shiftLabel:'+', code:'Equal', key:'=', shiftKey:'+', keyCode:61},
-      {label:'⌫', shiftLabel:'⌫', code:'Backspace', key:'Backspace', keyCode:8, wide:true}
-    ],
-    // 第二行：QWERTY
-    [
-      {label:'Tab', code:'Tab', key:'Tab', keyCode:9, wide:true},
-      {label:'q', shiftLabel:'Q', code:'KeyQ', key:'q', shiftKey:'Q', keyCode:81},
-      {label:'w', shiftLabel:'W', code:'KeyW', key:'w', shiftKey:'W', keyCode:87},
-      {label:'e', shiftLabel:'E', code:'KeyE', key:'e', shiftKey:'E', keyCode:69},
-      {label:'r', shiftLabel:'R', code:'KeyR', key:'r', shiftKey:'R', keyCode:82},
-      {label:'t', shiftLabel:'T', code:'KeyT', key:'t', shiftKey:'T', keyCode:84},
-      {label:'y', shiftLabel:'Y', code:'KeyY', key:'y', shiftKey:'Y', keyCode:89},
-      {label:'u', shiftLabel:'U', code:'KeyU', key:'u', shiftKey:'U', keyCode:85},
-      {label:'i', shiftLabel:'I', code:'KeyI', key:'i', shiftKey:'I', keyCode:73},
-      {label:'o', shiftLabel:'O', code:'KeyO', key:'o', shiftKey:'O', keyCode:79},
-      {label:'p', shiftLabel:'P', code:'KeyP', key:'p', shiftKey:'P', keyCode:80},
-      {label:'[', shiftLabel:'{', code:'BracketLeft', key:'[', shiftKey:'{', keyCode:219},
-      {label:']', shiftLabel:'}', code:'BracketRight', key:']', shiftKey:'}', keyCode:221},
-      {label:'\\', shiftLabel:'|', code:'Backslash', key:'\\', shiftKey:'|', keyCode:220}
-    ],
-    // 第三行：ASDF
-    [
-      {label:'Caps', code:'CapsLock', key:'CapsLock', keyCode:20, wide:true, caps:true},
-      {label:'a', shiftLabel:'A', code:'KeyA', key:'a', shiftKey:'A', keyCode:65},
-      {label:'s', shiftLabel:'S', code:'KeyS', key:'s', shiftKey:'S', keyCode:83},
-      {label:'d', shiftLabel:'D', code:'KeyD', key:'d', shiftKey:'D', keyCode:68},
-      {label:'f', shiftLabel:'F', code:'KeyF', key:'f', shiftKey:'F', keyCode:70},
-      {label:'g', shiftLabel:'G', code:'KeyG', key:'g', shiftKey:'G', keyCode:71},
-      {label:'h', shiftLabel:'H', code:'KeyH', key:'h', shiftKey:'H', keyCode:72},
-      {label:'j', shiftLabel:'J', code:'KeyJ', key:'j', shiftKey:'J', keyCode:74},
-      {label:'k', shiftLabel:'K', code:'KeyK', key:'k', shiftKey:'K', keyCode:75},
-      {label:'l', shiftLabel:'L', code:'KeyL', key:'l', shiftKey:'L', keyCode:76},
-      {label:';', shiftLabel:':', code:'Semicolon', key:';', shiftKey:':', keyCode:186},
-      {label:"'", shiftLabel:'"', code:'Quote', key:"'", shiftKey:'"', keyCode:222},
-      {label:'Enter', code:'Enter', key:'Enter', keyCode:13, wide:true}
-    ],
-    // 第四行：ZXCV
-    [
-      {label:'Shift', code:'ShiftLeft', key:'Shift', keyCode:16, wide:true, shift:true},
-      {label:'z', shiftLabel:'Z', code:'KeyZ', key:'z', shiftKey:'Z', keyCode:90},
-      {label:'x', shiftLabel:'X', code:'KeyX', key:'x', shiftKey:'X', keyCode:88},
-      {label:'c', shiftLabel:'C', code:'KeyC', key:'c', shiftKey:'C', keyCode:67},
-      {label:'v', shiftLabel:'V', code:'KeyV', key:'v', shiftKey:'V', keyCode:86},
-      {label:'b', shiftLabel:'B', code:'KeyB', key:'b', shiftKey:'B', keyCode:66},
-      {label:'n', shiftLabel:'N', code:'KeyN', key:'n', shiftKey:'N', keyCode:78},
-      {label:'m', shiftLabel:'M', code:'KeyM', key:'m', shiftKey:'M', keyCode:77},
-      {label:',', shiftLabel:'<', code:'Comma', key:',', shiftKey:'<', keyCode:188},
-      {label:'.', shiftLabel:'>', code:'Period', key:'.', shiftKey:'>', keyCode:190},
-      {label:'/', shiftLabel:'?', code:'Slash', key:'/', shiftKey:'?', keyCode:191},
-      {label:'Ctrl', code:'ControlLeft', key:'Control', keyCode:17, wide:true},
-    ],
-    // 第五行：空格、方向等
-    [
-      {label:'Alt', code:'AltLeft', key:'Alt', keyCode:18, wide:true},
-      {label:'Space', code:'Space', key:' ', keyCode:32, space:true},
-      {label:'Esc', code:'Escape', key:'Escape', keyCode:27},
-      {label:'←', code:'ArrowLeft', key:'ArrowLeft', keyCode:37},
-      {label:'↑', code:'ArrowUp', key:'ArrowUp', keyCode:38},
-      {label:'↓', code:'ArrowDown', key:'ArrowDown', keyCode:40},
-      {label:'→', code:'ArrowRight', key:'ArrowRight', keyCode:39},
-    ]
-  ];
-
-  let shiftActive = false;
-  let capsActive = false;
-  let allButtons = []; // 存储所有按键DOM元素以便更新标签
-
-  function updateAllButtonLabels() {
-    allButtons.forEach(btn => {
-      const kd = btn._keyData;
-      if (!kd) return;
-      if (kd.shift) {
-        btn.textContent = shiftActive ? '▲ Shift' : 'Shift';
-      } else if (kd.caps) {
-        btn.textContent = capsActive ? '▲ Caps' : 'Caps';
-      } else {
-        const showShift = (shiftActive && !kd.special) || (capsActive && kd.shiftKey && kd.code && kd.code.startsWith('Key'));
-        btn.textContent = showShift && kd.shiftLabel ? kd.shiftLabel : kd.label;
-      }
-    });
-  }
-
-  function sendKeyEvent(type, keyData, key) {
-    if (!emulator) return;
-    const code = keyData.code;
-    const keyCode = keyData.keyCode;
-    const init = {
-      key: key,
-      code: code,
-      keyCode: keyCode,
-      which: keyCode,
-      bubbles: true,
-      cancelable: true,
-      view: window,
-      location: code.includes('Left') ? 1 : 0,
-      repeat: false,
-      isComposing: false,
+    const config = {
+      screen_container: screenDiv,
+      bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
+      vga_bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin" },
+      cdrom: { url: "https://cdn.jsdelivr.net/gh/copy/images@master/linux.iso" },
+      wasm_path: "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
+      autostart: true,
+      disable_keyboard: false,
+      disable_speaker: true,
+      acpi: true,
     };
-    const event = new KeyboardEvent(type, init);
-    Object.defineProperty(event, 'charCode', { value: keyCode });
-    screenDiv.dispatchEvent(event);
-  }
 
-  function handleKeyPress(keyData, btn) {
-    // 修饰键
-    if (keyData.shift) {
-      shiftActive = !shiftActive;
-      btn.classList.toggle('active', shiftActive);
-      sendKeyEvent('keydown', keyData, 'Shift');
-      sendKeyEvent('keyup', keyData, 'Shift');
-      updateAllButtonLabels();
-      return;
-    }
-    if (keyData.caps) {
-      capsActive = !capsActive;
-      btn.classList.toggle('active', capsActive);
-      sendKeyEvent('keydown', keyData, 'CapsLock');
-      sendKeyEvent('keyup', keyData, 'CapsLock');
-      updateAllButtonLabels();
+    let emulator;
+    try {
+      emulator = new V86(config);
+      log('模拟器已创建', 'success');
+    } catch (e) {
+      log('模拟器创建失败: ' + e.message, 'error');
       return;
     }
 
-    let key = keyData.key;
-    const isLetter = keyData.code && keyData.code.startsWith('Key') && keyData.code.length === 4;
-    if (isLetter) {
-      if ((shiftActive || capsActive) && keyData.shiftKey) {
-        key = keyData.shiftKey;
-      }
-    } else {
-      if (shiftActive && keyData.shiftKey) {
-        key = keyData.shiftKey;
-      }
-    }
-
-    sendKeyEvent('keydown', keyData, key);
-    sendKeyEvent('keyup', keyData, key);
-
-    // 按下普通键后自动取消 Shift（模拟物理键盘行为）
-    if (shiftActive) {
-      shiftActive = false;
-      document.querySelectorAll('[data-code="ShiftLeft"]').forEach(b => b.classList.remove('active'));
-      updateAllButtonLabels();
-    }
-  }
-
-  function buildKeyboard() {
-    const container = keyboardDiv.querySelector('.key-row') ? keyboardDiv : keyboardDiv;
-    // 移除旧的按键行（保留拖拽手柄）
-    const rows = keyboardDiv.querySelectorAll('.key-row');
-    rows.forEach(r => r.remove());
-
-    keyRows.forEach(row => {
-      const rowDiv = document.createElement('div');
-      rowDiv.className = 'key-row';
-      row.forEach(k => {
-        const btn = document.createElement('button');
-        btn.className = 'key-btn';
-        if (k.wide) btn.classList.add('wide');
-        if (k.space) btn.classList.add('space');
-        btn.textContent = k.label;
-        btn.setAttribute('data-code', k.code);
-        btn._keyData = k;
-        btn.addEventListener('pointerdown', (e) => {
-          e.preventDefault();
-          handleKeyPress(k, btn);
-        });
-        rowDiv.appendChild(btn);
-        allButtons.push(btn);
-      });
-      keyboardDiv.appendChild(rowDiv);
+    emulator.add_listener("emulator-loaded", () => {
+      log('终端就绪，登录：root / 空密码', 'success');
     });
-  }
+    emulator.add_listener("error", e => log('模拟器错误: ' + (e.message || e), 'error'));
 
-  buildKeyboard();
-  log('虚拟键盘已就绪', 'success');
+    // ========== 键盘布局数据 ==========
+    const keyRows = [
+      // F1-F12
+      {
+        keys: [
+          { label: 'F1',  code: 'F1',  extraClass: 'w40 modifier' },
+          { label: 'F2',  code: 'F2',  extraClass: 'w40 modifier' },
+          { label: 'F3',  code: 'F3',  extraClass: 'w40 modifier' },
+          { label: 'F4',  code: 'F4',  extraClass: 'w40 modifier' },
+          { label: 'F5',  code: 'F5',  extraClass: 'w40 modifier' },
+          { label: 'F6',  code: 'F6',  extraClass: 'w40 modifier' },
+          { label: 'F7',  code: 'F7',  extraClass: 'w40 modifier' },
+          { label: 'F8',  code: 'F8',  extraClass: 'w40 modifier' },
+          { label: 'F9',  code: 'F9',  extraClass: 'w40 modifier' },
+          { label: 'F10', code: 'F10', extraClass: 'w40 modifier' },
+          { label: 'F11', code: 'F11', extraClass: 'w40 modifier' },
+          { label: 'F12', code: 'F12', extraClass: 'w40 modifier' },
+        ]
+      },
+      // 数字行
+      {
+        keys: [
+          { label: 'Esc', code: 'Escape',    extraClass: 'w40 modifier' },
+          { label: '`',   shiftLabel: '~',  code: 'Backquote', extraClass: 'w40' },
+          { label: '1',   shiftLabel: '!',  code: 'Digit1',    extraClass: 'w40' },
+          { label: '2',   shiftLabel: '@',  code: 'Digit2',    extraClass: 'w40' },
+          { label: '3',   shiftLabel: '#',  code: 'Digit3',    extraClass: 'w40' },
+          { label: '4',   shiftLabel: '$',  code: 'Digit4',    extraClass: 'w40' },
+          { label: '5',   shiftLabel: '%',  code: 'Digit5',    extraClass: 'w40' },
+          { label: '6',   shiftLabel: '^',  code: 'Digit6',    extraClass: 'w40' },
+          { label: '7',   shiftLabel: '&',  code: 'Digit7',    extraClass: 'w40' },
+          { label: '8',   shiftLabel: '*',  code: 'Digit8',    extraClass: 'w40' },
+          { label: '9',   shiftLabel: '(',  code: 'Digit9',    extraClass: 'w40' },
+          { label: '0',   shiftLabel: ')',  code: 'Digit0',    extraClass: 'w40' },
+          { label: '-',   shiftLabel: '_',  code: 'Minus',     extraClass: 'w40' },
+          { label: '=',   shiftLabel: '+',  code: 'Equal',     extraClass: 'w40' },
+          { label: '⌫',   code: 'Backspace', extraClass: 'w60 modifier' },
+        ]
+      },
+      // QWERTY 行
+      {
+        keys: [
+          { label: 'Tab', code: 'Tab',  extraClass: 'w60 modifier' },
+          { label: 'q',   shiftLabel: 'Q',  code: 'KeyQ', extraClass: 'w40' },
+          { label: 'w',   shiftLabel: 'W',  code: 'KeyW', extraClass: 'w40' },
+          { label: 'e',   shiftLabel: 'E',  code: 'KeyE', extraClass: 'w40' },
+          { label: 'r',   shiftLabel: 'R',  code: 'KeyR', extraClass: 'w40' },
+          { label: 't',   shiftLabel: 'T',  code: 'KeyT', extraClass: 'w40' },
+          { label: 'y',   shiftLabel: 'Y',  code: 'KeyY', extraClass: 'w40' },
+          { label: 'u',   shiftLabel: 'U',  code: 'KeyU', extraClass: 'w40' },
+          { label: 'i',   shiftLabel: 'I',  code: 'KeyI', extraClass: 'w40' },
+          { label: 'o',   shiftLabel: 'O',  code: 'KeyO', extraClass: 'w40' },
+          { label: 'p',   shiftLabel: 'P',  code: 'KeyP', extraClass: 'w40' },
+          { label: '[',   shiftLabel: '{',  code: 'BracketLeft',  extraClass: 'w40' },
+          { label: ']',   shiftLabel: '}',  code: 'BracketRight', extraClass: 'w40' },
+          { label: '\\',  shiftLabel: '|',  code: 'Backslash',    extraClass: 'w40' },
+          { label: 'Del', code: 'Delete', extraClass: 'w40 modifier' },
+        ]
+      },
+      // ASDF 行
+      {
+        keys: [
+          { label: 'Caps', code: 'CapsLock', caps: true, extraClass: 'w80 modifier' },
+          { label: 'a',    shiftLabel: 'A',  code: 'KeyA', extraClass: 'w40' },
+          { label: 's',    shiftLabel: 'S',  code: 'KeyS', extraClass: 'w40' },
+          { label: 'd',    shiftLabel: 'D',  code: 'KeyD', extraClass: 'w40' },
+          { label: 'f',    shiftLabel: 'F',  code: 'KeyF', extraClass: 'w40' },
+          { label: 'g',    shiftLabel: 'G',  code: 'KeyG', extraClass: 'w40' },
+          { label: 'h',    shiftLabel: 'H',  code: 'KeyH', extraClass: 'w40' },
+          { label: 'j',    shiftLabel: 'J',  code: 'KeyJ', extraClass: 'w40' },
+          { label: 'k',    shiftLabel: 'K',  code: 'KeyK', extraClass: 'w40' },
+          { label: 'l',    shiftLabel: 'L',  code: 'KeyL', extraClass: 'w40' },
+          { label: ';',    shiftLabel: ':',  code: 'Semicolon', extraClass: 'w40' },
+          { label: "'",    shiftLabel: '"',  code: 'Quote',     extraClass: 'w40' },
+          { label: 'Enter', code: 'Enter', extraClass: 'w100 modifier' },
+        ]
+      },
+      // ZXCV 行
+      {
+        keys: [
+          { label: 'Shift', code: 'ShiftLeft',  shift: true, extraClass: 'w100 modifier' },
+          { label: 'z',     shiftLabel: 'Z',     code: 'KeyZ', extraClass: 'w40' },
+          { label: 'x',     shiftLabel: 'X',     code: 'KeyX', extraClass: 'w40' },
+          { label: 'c',     shiftLabel: 'C',     code: 'KeyC', extraClass: 'w40' },
+          { label: 'v',     shiftLabel: 'V',     code: 'KeyV', extraClass: 'w40' },
+          { label: 'b',     shiftLabel: 'B',     code: 'KeyB', extraClass: 'w40' },
+          { label: 'n',     shiftLabel: 'N',     code: 'KeyN', extraClass: 'w40' },
+          { label: 'm',     shiftLabel: 'M',     code: 'KeyM', extraClass: 'w40' },
+          { label: ',',     shiftLabel: '<',     code: 'Comma',  extraClass: 'w40' },
+          { label: '.',     shiftLabel: '>',     code: 'Period', extraClass: 'w40' },
+          { label: '/',     shiftLabel: '?',     code: 'Slash',  extraClass: 'w40' },
+          { label: '↑',     code: 'ArrowUp',     extraClass: 'w40' },
+          { label: 'Shift', code: 'ShiftRight', shift: true, extraClass: 'w80 modifier' },
+        ]
+      },
+      // 底行
+      {
+        keys: [
+          { label: 'Fn',    code: 'Fn',            extraClass: 'w40 modifier' },
+          { label: 'Ctrl',  code: 'ControlLeft',   extraClass: 'w40 modifier' },
+          { label: 'Win',   code: 'MetaLeft',      extraClass: 'w40 modifier' },
+          { label: 'Alt',   code: 'AltLeft',       extraClass: 'w40 modifier' },
+          { label: 'Space', code: 'Space',         extraClass: 'w220' },
+          { label: 'Alt',   code: 'AltRight',      extraClass: 'w40 modifier' },
+          { label: 'Ctrl',  code: 'ControlRight',  extraClass: 'w40 modifier' },
+          { label: '←',     code: 'ArrowLeft',     extraClass: 'w40' },
+          { label: '↓',     code: 'ArrowDown',     extraClass: 'w40' },
+          { label: '→',     code: 'ArrowRight',    extraClass: 'w40' },
+          { label: 'Fn',    code: 'Fn',            extraClass: 'w40 modifier' },
+        ]
+      }
+    ];
 
-  // ========== 键盘拖动 ==========
-  let dragging = false;
-  let startX, startY, startLeft, startTop;
+    // ========== 键盘交互 ==========
+    const pressedKeys = new Set();
+    let capsActive = false;
+    const allButtons = [];
 
-  function onDragStart(e) {
-    e.preventDefault();
-    const touch = e.touches ? e.touches[0] : e;
-    dragging = true;
-    startX = touch.clientX;
-    startY = touch.clientY;
-    const rect = keyboardDiv.getBoundingClientRect();
-    startLeft = rect.left;
-    startTop = rect.top;
-    keyboardDiv.style.transition = 'none';
-    keyboardDiv.style.transform = 'none';
-    keyboardDiv.style.left = startLeft + 'px';
-    keyboardDiv.style.top = startTop + 'px';
-    keyboardDiv.style.bottom = 'auto';
-  }
+    function dispatchKeyEvent(type, code, key, keyCode) {
+      if (!emulator) return;
+      const event = new KeyboardEvent(type, {
+        key, code, keyCode, which: keyCode,
+        bubbles: true, cancelable: true, view: window,
+        location: code.includes('Left') ? 1 : (code.includes('Right') ? 2 : 0),
+      });
+      Object.defineProperty(event, 'charCode', { value: keyCode });
+      screenDiv.dispatchEvent(event);
+    }
 
-  function onDragMove(e) {
-    if (!dragging) return;
-    e.preventDefault();
-    const touch = e.touches ? e.touches[0] : e;
-    const dx = touch.clientX - startX;
-    const dy = touch.clientY - startY;
-    let newLeft = startLeft + dx;
-    let newTop = startTop + dy;
-    // 边界限制
-    const maxLeft = window.innerWidth - keyboardDiv.offsetWidth;
-    const maxTop = window.innerHeight - keyboardDiv.offsetHeight;
-    newLeft = Math.max(0, Math.min(newLeft, maxLeft));
-    newTop = Math.max(0, Math.min(newTop, maxTop));
-    keyboardDiv.style.left = newLeft + 'px';
-    keyboardDiv.style.top = newTop + 'px';
-  }
+    function updateButtonLabels() {
+      const shift = pressedKeys.has('ShiftLeft') || pressedKeys.has('ShiftRight');
+      allButtons.forEach(btn => {
+        const kd = btn._keyData;
+        if (!kd) return;
+        if (kd.shift) {
+          btn.textContent = shift ? '▲ Shift' : 'Shift';
+        } else if (kd.caps) {
+          btn.textContent = capsActive ? '▲ Caps' : 'Caps';
+        } else {
+          const useShift = (shift || capsActive) && kd.shiftLabel && kd.code?.startsWith('Key');
+          btn.textContent = useShift && kd.shiftLabel ? kd.shiftLabel : kd.label;
+        }
+      });
+    }
 
-  function onDragEnd(e) {
-    dragging = false;
-    keyboardDiv.style.transition = '';
-  }
+    function onPointerDown(e, keyData, btn) {
+      e.preventDefault();
+      e.stopPropagation();  // 防止干扰其他元素
+      const code = keyData.code;
+      if (keyData.caps) {
+        capsActive = !capsActive;
+        btn.classList.toggle('active', capsActive);
+        dispatchKeyEvent('keydown', code, 'CapsLock', 20);
+        dispatchKeyEvent('keyup', code, 'CapsLock', 20);
+        updateButtonLabels();
+        return;
+      }
+      if (!pressedKeys.has(code)) {
+        pressedKeys.add(code);
+        const key = keyData.shift ? 'Shift' : keyData.label;
+        const keyCode = keyData.shift ? 16 : 0;
+        dispatchKeyEvent('keydown', code, key, keyCode);
+      }
+      btn.classList.add('pressed');
+      updateButtonLabels();
+    }
 
-  dragHandle.addEventListener('touchstart', onDragStart);
-  document.addEventListener('touchmove', onDragMove, { passive: false });
-  document.addEventListener('touchend', onDragEnd);
+    function onPointerUp(e, keyData, btn) {
+      e.preventDefault();
+      const code = keyData.code;
+      let stillPressed = false;
+      for (const otherBtn of allButtons) {
+        if (otherBtn._keyData.code === code && otherBtn.classList.contains('pressed')) {
+          stillPressed = true;
+          break;
+        }
+      }
+      if (!stillPressed) {
+        pressedKeys.delete(code);
+        const key = keyData.shift ? 'Shift' : keyData.label;
+        const keyCode = keyData.shift ? 16 : 0;
+        dispatchKeyEvent('keyup', code, key, keyCode);
+      }
+      btn.classList.remove('pressed');
+      updateButtonLabels();
+    }
 
-  dragHandle.addEventListener('mousedown', onDragStart);
-  document.addEventListener('mousemove', onDragMove);
-  document.addEventListener('mouseup', onDragEnd);
+    function buildButton(keyData) {
+      const btn = document.createElement('div');
+      btn.className = 'key-btn ' + (keyData.extraClass || '');
+      btn.textContent = keyData.label;
+      btn._keyData = keyData;
+      btn.addEventListener('pointerdown', e => onPointerDown(e, keyData, btn));
+      btn.addEventListener('pointerup', e => onPointerUp(e, keyData, btn));
+      btn.addEventListener('pointerleave', e => onPointerUp(e, keyData, btn));
+      return btn;
+    }
 
-  // 初始位置：底部居中
-  function positionKeyboard() {
-    keyboardDiv.style.left = '50%';
-    keyboardDiv.style.transform = 'translateX(-50%)';
-    keyboardDiv.style.bottom = '20px';
-    keyboardDiv.style.top = 'auto';
-  }
-  positionKeyboard();
-  window.addEventListener('resize', positionKeyboard);
+    function buildKeyboard() {
+      keyboardDiv.querySelectorAll('.key-row').forEach(r => r.remove());
+      allButtons.length = 0;
+      keyRows.forEach(rowDef => {
+        const row = document.createElement('div');
+        row.className = 'key-row';
+        rowDef.keys.forEach(k => {
+          const btn = buildButton(k);
+          row.appendChild(btn);
+          allButtons.push(btn);
+        });
+        keyboardDiv.appendChild(row);
+      });
+    }
 
-})();
-</script>
+    buildKeyboard();
+    log('键盘就绪', 'success');
+
+    // ========== 拖动逻辑（优化） ==========
+    let dragging = false, startX, startY, startLeft, startTop;
+    dragHandle.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      dragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = keyboardDiv.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+      keyboardDiv.style.transition = 'none';
+      keyboardDiv.style.transform = 'none';
+      keyboardDiv.style.left = startLeft + 'px';
+      keyboardDiv.style.top = startTop + 'px';
+      keyboardDiv.style.bottom = 'auto';
+      dragHandle.setPointerCapture(e.pointerId);
+    });
+    document.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      e.preventDefault();
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      let newLeft = startLeft + dx;
+      let newTop = startTop + dy;
+      const maxLeft = window.innerWidth - keyboardDiv.offsetWidth;
+      const maxTop = window.innerHeight - keyboardDiv.offsetHeight;
+      newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+      newTop = Math.max(0, Math.min(newTop, maxTop));
+      keyboardDiv.style.left = newLeft + 'px';
+      keyboardDiv.style.top = newTop + 'px';
+    });
+    document.addEventListener('pointerup', () => {
+      if (dragging) {
+        dragging = false;
+        keyboardDiv.style.transition = '';
+      }
+    });
+
+    function positionKeyboard() {
+      keyboardDiv.style.left = '50%';
+      keyboardDiv.style.transform = 'translateX(-50%)';
+      keyboardDiv.style.bottom = '10px';
+      keyboardDiv.style.top = 'auto';
+    }
+    positionKeyboard();
+    window.addEventListener('resize', positionKeyboard);
+  })();
+  </script>
 </body>
 </html>
