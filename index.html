@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-  <title>SwC Linux 终端</title>
+  <title>SwC Linux 终端（修复空格输入）</title>
   <style>
     body {
       margin: 0;
@@ -34,7 +34,6 @@
       left: 0;
     }
 
-    /* 键盘容器 — 完全透明，水平居中，垂直可拖动 */
     #keyboard {
       position: fixed;
       width: auto;
@@ -124,7 +123,7 @@
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
-    // ========== V86 初始化（完全保留稳定版配置） ==========
+    // ========== V86 初始化 ==========
     if (typeof V86 === 'undefined') return;
 
     const config = {
@@ -142,7 +141,7 @@
     let emulator;
     try { emulator = new V86(config); } catch (e) { return; }
 
-    // ========== 键盘布局（完整键值，修复所有按键） ==========
+    // ========== 键盘布局（空格 key 为 ' '） ==========
     const keyRows = [
       {
         keys: [
@@ -238,7 +237,7 @@
           { label:'Ctrl', key:'Control',       code:'ControlLeft',   extraClass:'w40 modifier' },
           { label:'Win',  key:'Meta',          code:'MetaLeft',      extraClass:'w40 modifier' },
           { label:'Alt',  key:'Alt',           code:'AltLeft',       extraClass:'w40 modifier' },
-          { label:'Space',key:'Space',             code:'Space',         extraClass:'w220' },
+          { label:'Space',key:' ',             code:'Space',         extraClass:'w220' },
           { label:'Alt',  key:'Alt',           code:'AltRight',      extraClass:'w40 modifier' },
           { label:'Ctrl', key:'Control',       code:'ControlRight',  extraClass:'w40 modifier' },
           { label:'←',    key:'ArrowLeft',     code:'ArrowLeft',     extraClass:'w40' },
@@ -253,14 +252,27 @@
     let capsActive = false;
     const allButtons = [];
 
+    // ========== 修复：增强的事件派发（支持 keypress 和正确 keyCode） ==========
     function dispatchKeyEvent(type, code, key, keyCode) {
       if (!emulator) return;
+      // 如果是可打印字符（长度1）且 keyCode 未指定，则自动计算 ASCII
+      if (keyCode === 0 && key && key.length === 1) {
+        keyCode = key.charCodeAt(0);
+      }
       const event = new KeyboardEvent(type, {
-        key, code, keyCode, which: keyCode,
-        bubbles: true, cancelable: true, view: window,
+        key: key,
+        code: code,
+        keyCode: keyCode,
+        which: keyCode,
+        bubbles: true,
+        cancelable: true,
+        view: window,
         location: code.includes('Left') ? 1 : (code.includes('Right') ? 2 : 0),
       });
-      Object.defineProperty(event, 'charCode', { value: keyCode });
+      // 对 keypress 额外设置 charCode
+      if (type === 'keypress') {
+        Object.defineProperty(event, 'charCode', { value: keyCode });
+      }
       screenDiv.dispatchEvent(event);
     }
 
@@ -297,7 +309,16 @@
       pressedKeys.add(code);
       const key = keyData.shift ? 'Shift' : keyData.key;
       const keyCode = keyData.shift ? 16 : 0;
+
+      // 发送 keydown
       dispatchKeyEvent('keydown', code, key, keyCode);
+
+      // 如果是可打印字符（非修饰键，且 key 长度为 1），发送 keypress
+      if (!keyData.shift && !keyData.caps && key && key.length === 1) {
+        // keypress 使用字符的 ASCII 码作为 keyCode 和 charCode
+        const charCode = key.charCodeAt(0);
+        dispatchKeyEvent('keypress', code, key, charCode);
+      }
 
       btn.classList.add('pressed');
       updateButtonLabels();
@@ -348,7 +369,7 @@
 
     buildKeyboard();
 
-    // ========== 拖动：仅垂直移动，水平始终居中 ==========
+    // ========== 拖动 ==========
     let dragging = false;
     let startY;
     let initialTop;
@@ -359,7 +380,6 @@
       startY = e.clientY;
       const rect = keyboardDiv.getBoundingClientRect();
       initialTop = rect.top;
-      // 固定为 top 定位，并移除 bottom
       keyboardDiv.style.bottom = 'auto';
       keyboardDiv.style.top = initialTop + 'px';
       dragHandle.setPointerCapture(e.pointerId);
@@ -384,7 +404,6 @@
     document.addEventListener('pointermove', moveDrag);
     document.addEventListener('pointerup', endDrag);
 
-    // 初始位置：水平居中，距底部 8px
     keyboardDiv.style.bottom = '8px';
     keyboardDiv.style.top = 'auto';
     keyboardDiv.style.left = '50%';
