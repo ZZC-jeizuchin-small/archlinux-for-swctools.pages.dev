@@ -34,18 +34,16 @@
       left: 0;
     }
 
-    /* 键盘容器 */
+    /* 键盘容器 — 完全透明，无边框/阴影/圆角 */
     #keyboard {
       position: fixed;
-      width: 620px;
-      background: rgba(42, 46, 59, 0.96);
-      backdrop-filter: blur(6px);
-      padding: 8px 6px 10px;
-      border-radius: 14px;
+      width: auto;
+      max-width: 95vw;
+      background: transparent;
+      padding: 4px 6px 6px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      box-shadow: 0 8px 22px rgba(0,0,0,0.6);
+      gap: 3px;
       z-index: 100;
       touch-action: none;
       box-sizing: border-box;
@@ -64,7 +62,7 @@
     .drag-bar {
       width: 45px;
       height: 5px;
-      background: #7a7e8b;
+      background: rgba(122, 126, 139, 0.8);
       border-radius: 3px;
     }
 
@@ -142,126 +140,115 @@
     };
 
     let emulator;
-    try {
-      emulator = new V86(config);
-    } catch (e) {
-      return;
-    }
+    try { emulator = new V86(config); } catch (e) { return; }
 
-    // ========== 键盘布局数据 ==========
+    // ========== 键盘布局 ==========
     const keyRows = [
-      // F1-F12
       {
         keys: [
-          { label: 'F1',  code: 'F1',  extraClass: 'w40 modifier' },
-          { label: 'F2',  code: 'F2',  extraClass: 'w40 modifier' },
-          { label: 'F3',  code: 'F3',  extraClass: 'w40 modifier' },
-          { label: 'F4',  code: 'F4',  extraClass: 'w40 modifier' },
-          { label: 'F5',  code: 'F5',  extraClass: 'w40 modifier' },
-          { label: 'F6',  code: 'F6',  extraClass: 'w40 modifier' },
-          { label: 'F7',  code: 'F7',  extraClass: 'w40 modifier' },
-          { label: 'F8',  code: 'F8',  extraClass: 'w40 modifier' },
-          { label: 'F9',  code: 'F9',  extraClass: 'w40 modifier' },
-          { label: 'F10', code: 'F10', extraClass: 'w40 modifier' },
-          { label: 'F11', code: 'F11', extraClass: 'w40 modifier' },
-          { label: 'F12', code: 'F12', extraClass: 'w40 modifier' },
+          { label:'F1',  key:'F1',  code:'F1',  extraClass:'w40 modifier' },
+          { label:'F2',  key:'F2',  code:'F2',  extraClass:'w40 modifier' },
+          { label:'F3',  key:'F3',  code:'F3',  extraClass:'w40 modifier' },
+          { label:'F4',  key:'F4',  code:'F4',  extraClass:'w40 modifier' },
+          { label:'F5',  key:'F5',  code:'F5',  extraClass:'w40 modifier' },
+          { label:'F6',  key:'F6',  code:'F6',  extraClass:'w40 modifier' },
+          { label:'F7',  key:'F7',  code:'F7',  extraClass:'w40 modifier' },
+          { label:'F8',  key:'F8',  code:'F8',  extraClass:'w40 modifier' },
+          { label:'F9',  key:'F9',  code:'F9',  extraClass:'w40 modifier' },
+          { label:'F10', key:'F10', code:'F10', extraClass:'w40 modifier' },
+          { label:'F11', key:'F11', code:'F11', extraClass:'w40 modifier' },
+          { label:'F12', key:'F12', code:'F12', extraClass:'w40 modifier' },
         ]
       },
-      // 数字行
       {
         keys: [
-          { label: 'Esc', code: 'Escape',    extraClass: 'w40 modifier' },
-          { label: '`',   shiftLabel: '~',  code: 'Backquote', extraClass: 'w40' },
-          { label: '1',   shiftLabel: '!',  code: 'Digit1',    extraClass: 'w40' },
-          { label: '2',   shiftLabel: '@',  code: 'Digit2',    extraClass: 'w40' },
-          { label: '3',   shiftLabel: '#',  code: 'Digit3',    extraClass: 'w40' },
-          { label: '4',   shiftLabel: '$',  code: 'Digit4',    extraClass: 'w40' },
-          { label: '5',   shiftLabel: '%',  code: 'Digit5',    extraClass: 'w40' },
-          { label: '6',   shiftLabel: '^',  code: 'Digit6',    extraClass: 'w40' },
-          { label: '7',   shiftLabel: '&',  code: 'Digit7',    extraClass: 'w40' },
-          { label: '8',   shiftLabel: '*',  code: 'Digit8',    extraClass: 'w40' },
-          { label: '9',   shiftLabel: '(',  code: 'Digit9',    extraClass: 'w40' },
-          { label: '0',   shiftLabel: ')',  code: 'Digit0',    extraClass: 'w40' },
-          { label: '-',   shiftLabel: '_',  code: 'Minus',     extraClass: 'w40' },
-          { label: '=',   shiftLabel: '+',  code: 'Equal',     extraClass: 'w40' },
-          { label: '⌫',   code: 'Backspace', extraClass: 'w60 modifier' },
+          { label:'Esc', key:'Escape',    code:'Escape',    extraClass:'w40 modifier' },
+          { label:'`',   key:'`',         code:'Backquote', extraClass:'w40', shiftLabel:'~' },
+          { label:'1',   key:'1',         code:'Digit1',    extraClass:'w40', shiftLabel:'!' },
+          { label:'2',   key:'2',         code:'Digit2',    extraClass:'w40', shiftLabel:'@' },
+          { label:'3',   key:'3',         code:'Digit3',    extraClass:'w40', shiftLabel:'#' },
+          { label:'4',   key:'4',         code:'Digit4',    extraClass:'w40', shiftLabel:'$' },
+          { label:'5',   key:'5',         code:'Digit5',    extraClass:'w40', shiftLabel:'%' },
+          { label:'6',   key:'6',         code:'Digit6',    extraClass:'w40', shiftLabel:'^' },
+          { label:'7',   key:'7',         code:'Digit7',    extraClass:'w40', shiftLabel:'&' },
+          { label:'8',   key:'8',         code:'Digit8',    extraClass:'w40', shiftLabel:'*' },
+          { label:'9',   key:'9',         code:'Digit9',    extraClass:'w40', shiftLabel:'(' },
+          { label:'0',   key:'0',         code:'Digit0',    extraClass:'w40', shiftLabel:')' },
+          { label:'-',   key:'-',         code:'Minus',     extraClass:'w40', shiftLabel:'_' },
+          { label:'=',   key:'=',         code:'Equal',     extraClass:'w40', shiftLabel:'+' },
+          { label:'⌫',   key:'Backspace', code:'Backspace', extraClass:'w60 modifier' },
         ]
       },
-      // QWERTY 行
       {
         keys: [
-          { label: 'Tab', code: 'Tab',  extraClass: 'w60 modifier' },
-          { label: 'q',   shiftLabel: 'Q',  code: 'KeyQ', extraClass: 'w40' },
-          { label: 'w',   shiftLabel: 'W',  code: 'KeyW', extraClass: 'w40' },
-          { label: 'e',   shiftLabel: 'E',  code: 'KeyE', extraClass: 'w40' },
-          { label: 'r',   shiftLabel: 'R',  code: 'KeyR', extraClass: 'w40' },
-          { label: 't',   shiftLabel: 'T',  code: 'KeyT', extraClass: 'w40' },
-          { label: 'y',   shiftLabel: 'Y',  code: 'KeyY', extraClass: 'w40' },
-          { label: 'u',   shiftLabel: 'U',  code: 'KeyU', extraClass: 'w40' },
-          { label: 'i',   shiftLabel: 'I',  code: 'KeyI', extraClass: 'w40' },
-          { label: 'o',   shiftLabel: 'O',  code: 'KeyO', extraClass: 'w40' },
-          { label: 'p',   shiftLabel: 'P',  code: 'KeyP', extraClass: 'w40' },
-          { label: '[',   shiftLabel: '{',  code: 'BracketLeft',  extraClass: 'w40' },
-          { label: ']',   shiftLabel: '}',  code: 'BracketRight', extraClass: 'w40' },
-          { label: '\\',  shiftLabel: '|',  code: 'Backslash',    extraClass: 'w40' },
-          { label: 'Del', code: 'Delete', extraClass: 'w40 modifier' },
+          { label:'Tab', key:'Tab',  code:'Tab',  extraClass:'w60 modifier' },
+          { label:'q',   key:'q',    code:'KeyQ', extraClass:'w40', shiftLabel:'Q' },
+          { label:'w',   key:'w',    code:'KeyW', extraClass:'w40', shiftLabel:'W' },
+          { label:'e',   key:'e',    code:'KeyE', extraClass:'w40', shiftLabel:'E' },
+          { label:'r',   key:'r',    code:'KeyR', extraClass:'w40', shiftLabel:'R' },
+          { label:'t',   key:'t',    code:'KeyT', extraClass:'w40', shiftLabel:'T' },
+          { label:'y',   key:'y',    code:'KeyY', extraClass:'w40', shiftLabel:'Y' },
+          { label:'u',   key:'u',    code:'KeyU', extraClass:'w40', shiftLabel:'U' },
+          { label:'i',   key:'i',    code:'KeyI', extraClass:'w40', shiftLabel:'I' },
+          { label:'o',   key:'o',    code:'KeyO', extraClass:'w40', shiftLabel:'O' },
+          { label:'p',   key:'p',    code:'KeyP', extraClass:'w40', shiftLabel:'P' },
+          { label:'[',   key:'[',    code:'BracketLeft',  extraClass:'w40', shiftLabel:'{' },
+          { label:']',   key:']',    code:'BracketRight', extraClass:'w40', shiftLabel:'}' },
+          { label:'\\',  key:'\\',   code:'Backslash',    extraClass:'w40', shiftLabel:'|' },
+          { label:'Del', key:'Delete',code:'Delete', extraClass:'w40 modifier' },
         ]
       },
-      // ASDF 行
       {
         keys: [
-          { label: 'Caps', code: 'CapsLock', caps: true, extraClass: 'w80 modifier' },
-          { label: 'a',    shiftLabel: 'A',  code: 'KeyA', extraClass: 'w40' },
-          { label: 's',    shiftLabel: 'S',  code: 'KeyS', extraClass: 'w40' },
-          { label: 'd',    shiftLabel: 'D',  code: 'KeyD', extraClass: 'w40' },
-          { label: 'f',    shiftLabel: 'F',  code: 'KeyF', extraClass: 'w40' },
-          { label: 'g',    shiftLabel: 'G',  code: 'KeyG', extraClass: 'w40' },
-          { label: 'h',    shiftLabel: 'H',  code: 'KeyH', extraClass: 'w40' },
-          { label: 'j',    shiftLabel: 'J',  code: 'KeyJ', extraClass: 'w40' },
-          { label: 'k',    shiftLabel: 'K',  code: 'KeyK', extraClass: 'w40' },
-          { label: 'l',    shiftLabel: 'L',  code: 'KeyL', extraClass: 'w40' },
-          { label: ';',    shiftLabel: ':',  code: 'Semicolon', extraClass: 'w40' },
-          { label: "'",    shiftLabel: '"',  code: 'Quote',     extraClass: 'w40' },
-          { label: 'Enter', code: 'Enter', extraClass: 'w100 modifier' },
+          { label:'Caps', key:'CapsLock', code:'CapsLock', caps:true, extraClass:'w80 modifier' },
+          { label:'a',    key:'a',   code:'KeyA', extraClass:'w40', shiftLabel:'A' },
+          { label:'s',    key:'s',   code:'KeyS', extraClass:'w40', shiftLabel:'S' },
+          { label:'d',    key:'d',   code:'KeyD', extraClass:'w40', shiftLabel:'D' },
+          { label:'f',    key:'f',   code:'KeyF', extraClass:'w40', shiftLabel:'F' },
+          { label:'g',    key:'g',   code:'KeyG', extraClass:'w40', shiftLabel:'G' },
+          { label:'h',    key:'h',   code:'KeyH', extraClass:'w40', shiftLabel:'H' },
+          { label:'j',    key:'j',   code:'KeyJ', extraClass:'w40', shiftLabel:'J' },
+          { label:'k',    key:'k',   code:'KeyK', extraClass:'w40', shiftLabel:'K' },
+          { label:'l',    key:'l',   code:'KeyL', extraClass:'w40', shiftLabel:'L' },
+          { label:';',    key:';',   code:'Semicolon', extraClass:'w40', shiftLabel:':' },
+          { label:"'",    key:"'",   code:'Quote',     extraClass:'w40', shiftLabel:'"' },
+          { label:'Enter',key:'Enter',code:'Enter', extraClass:'w100 modifier' },
         ]
       },
-      // ZXCV 行
       {
         keys: [
-          { label: 'Shift', code: 'ShiftLeft',  shift: true, extraClass: 'w100 modifier' },
-          { label: 'z',     shiftLabel: 'Z',     code: 'KeyZ', extraClass: 'w40' },
-          { label: 'x',     shiftLabel: 'X',     code: 'KeyX', extraClass: 'w40' },
-          { label: 'c',     shiftLabel: 'C',     code: 'KeyC', extraClass: 'w40' },
-          { label: 'v',     shiftLabel: 'V',     code: 'KeyV', extraClass: 'w40' },
-          { label: 'b',     shiftLabel: 'B',     code: 'KeyB', extraClass: 'w40' },
-          { label: 'n',     shiftLabel: 'N',     code: 'KeyN', extraClass: 'w40' },
-          { label: 'm',     shiftLabel: 'M',     code: 'KeyM', extraClass: 'w40' },
-          { label: ',',     shiftLabel: '<',     code: 'Comma',  extraClass: 'w40' },
-          { label: '.',     shiftLabel: '>',     code: 'Period', extraClass: 'w40' },
-          { label: '/',     shiftLabel: '?',     code: 'Slash',  extraClass: 'w40' },
-          { label: '↑',     code: 'ArrowUp',     extraClass: 'w40' },
-          { label: 'Shift', code: 'ShiftRight', shift: true, extraClass: 'w80 modifier' },
+          { label:'Shift', key:'Shift', code:'ShiftLeft',  shift:true, extraClass:'w100 modifier' },
+          { label:'z',     key:'z',     code:'KeyZ', extraClass:'w40', shiftLabel:'Z' },
+          { label:'x',     key:'x',     code:'KeyX', extraClass:'w40', shiftLabel:'X' },
+          { label:'c',     key:'c',     code:'KeyC', extraClass:'w40', shiftLabel:'C' },
+          { label:'v',     key:'v',     code:'KeyV', extraClass:'w40', shiftLabel:'V' },
+          { label:'b',     key:'b',     code:'KeyB', extraClass:'w40', shiftLabel:'B' },
+          { label:'n',     key:'n',     code:'KeyN', extraClass:'w40', shiftLabel:'N' },
+          { label:'m',     key:'m',     code:'KeyM', extraClass:'w40', shiftLabel:'M' },
+          { label:',',     key:',',     code:'Comma',  extraClass:'w40', shiftLabel:'<' },
+          { label:'.',     key:'.',     code:'Period', extraClass:'w40', shiftLabel:'>' },
+          { label:'/',     key:'/',     code:'Slash',  extraClass:'w40', shiftLabel:'?' },
+          { label:'↑',     key:'ArrowUp',code:'ArrowUp', extraClass:'w40' },
+          { label:'Shift', key:'Shift', code:'ShiftRight', shift:true, extraClass:'w80 modifier' },
         ]
       },
-      // 底行
       {
         keys: [
-          { label: 'Fn',    code: 'Fn',            extraClass: 'w40 modifier' },
-          { label: 'Ctrl',  code: 'ControlLeft',   extraClass: 'w40 modifier' },
-          { label: 'Win',   code: 'MetaLeft',      extraClass: 'w40 modifier' },
-          { label: 'Alt',   code: 'AltLeft',       extraClass: 'w40 modifier' },
-          { label: 'Space', code: 'Space',         extraClass: 'w220' },
-          { label: 'Alt',   code: 'AltRight',      extraClass: 'w40 modifier' },
-          { label: 'Ctrl',  code: 'ControlRight',  extraClass: 'w40 modifier' },
-          { label: '←',     code: 'ArrowLeft',     extraClass: 'w40' },
-          { label: '↓',     code: 'ArrowDown',     extraClass: 'w40' },
-          { label: '→',     code: 'ArrowRight',    extraClass: 'w40' },
-          { label: 'Fn',    code: 'Fn',            extraClass: 'w40 modifier' },
+          { label:'Fn',   key:'Fn',            code:'Fn',            extraClass:'w40 modifier' },
+          { label:'Ctrl', key:'Control',       code:'ControlLeft',   extraClass:'w40 modifier' },
+          { label:'Win',  key:'Meta',          code:'MetaLeft',      extraClass:'w40 modifier' },
+          { label:'Alt',  key:'Alt',           code:'AltLeft',       extraClass:'w40 modifier' },
+          { label:'Space',key:' ',             code:'Space',         extraClass:'w220' },
+          { label:'Alt',  key:'Alt',           code:'AltRight',      extraClass:'w40 modifier' },
+          { label:'Ctrl', key:'Control',       code:'ControlRight',  extraClass:'w40 modifier' },
+          { label:'←',    key:'ArrowLeft',     code:'ArrowLeft',     extraClass:'w40' },
+          { label:'↓',    key:'ArrowDown',     code:'ArrowDown',     extraClass:'w40' },
+          { label:'→',    key:'ArrowRight',    code:'ArrowRight',    extraClass:'w40' },
+          { label:'Fn',   key:'Fn',            code:'Fn',            extraClass:'w40 modifier' },
         ]
       }
     ];
 
-    // ========== 键盘交互 ==========
     const pressedKeys = new Set();
     let capsActive = false;
     const allButtons = [];
@@ -308,7 +295,7 @@
       }
 
       pressedKeys.add(code);
-      const key = keyData.shift ? 'Shift' : keyData.label;
+      const key = keyData.shift ? 'Shift' : keyData.key;
       const keyCode = keyData.shift ? 16 : 0;
       dispatchKeyEvent('keydown', code, key, keyCode);
 
@@ -321,7 +308,7 @@
       const code = keyData.code;
 
       pressedKeys.delete(code);
-      const key = keyData.shift ? 'Shift' : keyData.label;
+      const key = keyData.shift ? 'Shift' : keyData.key;
       const keyCode = keyData.shift ? 16 : 0;
       dispatchKeyEvent('keyup', code, key, keyCode);
 
@@ -361,7 +348,7 @@
 
     buildKeyboard();
 
-    // ========== 稳定的拖动逻辑 ==========
+    // 拖动
     let dragging = false;
     let dragStartX, dragStartY;
     let initialLeft, initialTop;
@@ -371,11 +358,9 @@
       dragging = true;
       dragStartX = e.clientX;
       dragStartY = e.clientY;
-      // 获取当前位置（已经是绝对定位的 left/top）
       const rect = keyboardDiv.getBoundingClientRect();
       initialLeft = rect.left;
       initialTop = rect.top;
-      // 移除可能的 transform，直接使用 left/top 定位
       keyboardDiv.style.transform = 'none';
       keyboardDiv.style.left = initialLeft + 'px';
       keyboardDiv.style.top = initialTop + 'px';
@@ -390,7 +375,6 @@
       const dy = e.clientY - dragStartY;
       let newLeft = initialLeft + dx;
       let newTop = initialTop + dy;
-      // 边界限制
       const maxLeft = window.innerWidth - keyboardDiv.offsetWidth;
       const maxTop = window.innerHeight - keyboardDiv.offsetHeight;
       newLeft = Math.max(0, Math.min(newLeft, maxLeft));
@@ -408,7 +392,6 @@
     document.addEventListener('pointermove', moveDrag);
     document.addEventListener('pointerup', endDrag);
 
-    // 初始定位到底部居中
     function initialPosition() {
       keyboardDiv.style.left = '50%';
       keyboardDiv.style.top = 'auto';
@@ -416,7 +399,6 @@
       keyboardDiv.style.transform = 'translateX(-50%)';
     }
     initialPosition();
-    window.addEventListener('resize', initialPosition);
 
   })();
   </script>
