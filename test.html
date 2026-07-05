@@ -1,321 +1,56 @@
-l<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v86 资源离线下载器</title>
+    <title>状态文件链接测试</title>
     <style>
-        :root {
-            --bg: #0d1117;
-            --card: #161b22;
-            --border: #30363d;
-            --text: #c9d1d9;
-            --accent: #58a6ff;
-            --green: #3fb950;
-            --red: #f85149;
-            --hover: #1f242e;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .container {
-            width: 100%;
-            max-width: 700px;
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 28px 24px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-        }
-        h1 {
-            font-size: 1.4rem;
-            margin-bottom: 6px;
-            color: var(--accent);
-        }
-        .sub {
-            font-size: 0.82rem;
-            color: #8b949e;
-            margin-bottom: 24px;
-        }
-        .file-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-bottom: 28px;
-        }
-        .file-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .file-name {
-            font-size: 0.85rem;
-            word-break: break-all;
-            color: var(--text);
-        }
-        .file-size {
-            font-size: 0.75rem;
-            color: #8b949e;
-            margin-left: 10px;
-        }
-        .btn {
-            padding: 6px 14px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            background: var(--hover);
-            color: var(--text);
-            cursor: pointer;
-            font-size: 0.8rem;
-            font-family: inherit;
-            transition: background 0.2s, border-color 0.2s;
-            white-space: nowrap;
-        }
-        .btn:hover { background: #30363d; border-color: #58a6ff; }
-        .btn.primary {
-            background: #238636;
-            border-color: #2ea043;
-            color: #fff;
-            font-weight: 600;
-        }
-        .btn.primary:hover { background: #2ea043; }
-        .btn.danger { background: #8b1e1e; border-color: #da3633; color: #fff; }
-        .progress {
-            margin-top: 16px;
-            font-size: 0.8rem;
-            color: #8b949e;
-        }
-        .status {
-            margin-left: 10px;
-            font-size: 0.75rem;
-        }
-        .status.success { color: var(--green); }
-        .status.error { color: var(--red); }
-        hr {
-            margin: 20px 0;
-            border: none;
-            border-top: 1px solid var(--border);
-        }
-        .note {
-            font-size: 0.78rem;
-            color: #6e7681;
-            line-height: 1.6;
-        }
+        body { font-family: monospace; padding: 20px; background: #0d1117; color: #c9d1d9; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px 0; }
+        pre { background: #161b22; padding: 15px; border-radius: 6px; overflow-x: auto; }
+        .success { color: #3fb950; }
+        .error { color: #f85149; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>⬇️ v86 资源离线下载器</h1>
-        <div class="sub">用于 archlinux.html 的 5 个外部文件</div>
-
-        <div class="file-list" id="fileList"></div>
-
-        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <button class="btn primary" id="downloadAllBtn">📦 下载全部文件</button>
-            <button class="btn" id="resetBtn">🔄 重置状态</button>
-        </div>
-
-        <div class="progress" id="progress"></div>
-        <hr>
-        <div class="note">
-            💡 点击“下载全部”会依次抓取并保存每个文件。浏览器可能要求允许多个下载。
-            <br>📁 所有文件托管在 jsdelivr CDN，支持 CORS 跨域下载。
-            <br>🔧 下载后请将文件放在同一目录，并修改 archlinux.html 中的 URL 为相对路径。
-        </div>
-    </div>
+    <h2>🔗 状态文件链接可行性测试</h2>
+    <p>目标 URL: <code id="url"></code></p>
+    <button onclick="testUrl()">🚀 发送测试请求</button>
+    <pre id="log"></pre>
 
     <script>
-        (function() {
-            // 需要下载的文件列表
-            const files = [
-                {
-                    name: 'libv86.js',
-                    url: 'https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js',
-                    desc: 'v86 主库'
-                },
-                {
-                    name: 'v86.wasm',
-                    url: 'https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm',
-                    desc: 'WebAssembly 核心'
-                },
-                {
-                    name: 'seabios.bin',
-                    url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin',
-                    desc: 'BIOS 固件'
-                },
-                {
-                    name: 'vgabios.bin',
-                    url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin',
-                    desc: 'VGA BIOS'
-                },
-                {
-                    name: 'linux.iso',
-                    url: 'https://cdn.jsdelivr.net/gh/copy/images@master/linux.iso',
-                    desc: 'Buildroot 镜像'
-                }
-            ];
+        const targetUrl = "https://stuff.aoodyconcor.de/d/local/robin/v86state.bin?sign=rVokpNP7dAffY5DSjoNBAIRyQkww7sTcTdIbEv3hwqY=:0";
+        document.getElementById('url').textContent = targetUrl;
 
-            const fileListEl = document.getElementById('fileList');
-            const progressEl = document.getElementById('progress');
-            const downloadAllBtn = document.getElementById('downloadAllBtn');
-            const resetBtn = document.getElementById('resetBtn');
-
-            // 存储每个文件的状态
-            const fileStates = files.map(() => ({ status: 'pending', message: '' }));
-
-            // 渲染文件列表
-            function renderFileList() {
-                fileListEl.innerHTML = files.map((file, index) => {
-                    const state = fileStates[index];
-                    let statusHtml = '';
-                    if (state.status === 'downloading') {
-                        statusHtml = `<span class="status">⏳ 下载中...</span>`;
-                    } else if (state.status === 'success') {
-                        statusHtml = `<span class="status success">✅ 已保存</span>`;
-                    } else if (state.status === 'error') {
-                        statusHtml = `<span class="status error">❌ ${state.message}</span>`;
-                    } else {
-                        statusHtml = `<span class="status" style="color:#6e7681;">⏸️ 等待</span>`;
-                    }
-                    return `
-                        <div class="file-item">
-                            <div style="display:flex; align-items:baseline; flex-wrap:wrap;">
-                                <span class="file-name">${file.name}</span>
-                                <span class="file-size">(${file.desc})</span>
-                            </div>
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                ${statusHtml}
-                                <button class="btn download-single" data-index="${index}">⬇️ 单独下载</button>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-
-                // 绑定单个下载事件
-                document.querySelectorAll('.download-single').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const index = parseInt(e.target.dataset.index);
-                        downloadSingleFile(index);
-                    });
-                });
-            }
-
-            // 更新进度文字
-            function updateProgress(text, isError = false) {
-                progressEl.textContent = text;
-                progressEl.style.color = isError ? 'var(--red)' : '#8b949e';
-            }
-
-            // 下载单个文件（返回 Promise）
-            async function downloadFile(index) {
-                const file = files[index];
-                fileStates[index] = { status: 'downloading', message: '' };
-                renderFileList();
-                updateProgress(`正在下载 ${file.name} ...`);
-
-                try {
-                    const response = await fetch(file.url);
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    const blob = await response.blob();
-                    // 使用 Blob URL 触发下载
-                    const blobUrl = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = blobUrl;
-                    a.download = file.name;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    // 延迟释放 URL
-                    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
-
-                    fileStates[index] = { status: 'success', message: '' };
-                    updateProgress(`${file.name} 下载完成`);
-                } catch (err) {
-                    fileStates[index] = { status: 'error', message: err.message };
-                    updateProgress(`下载 ${file.name} 失败: ${err.message}`, true);
-                    throw err; // 中断后续下载
-                }
-                renderFileList();
-            }
-
-            // 单个文件下载（点击按钮）
-            async function downloadSingleFile(index) {
-                const state = fileStates[index];
-                if (state.status === 'downloading') return;
-                try {
-                    await downloadFile(index);
-                } catch (e) {
-                    // 错误已在 downloadFile 中处理
-                }
-            }
-
-            // 下载全部（顺序下载，避免浏览器同时弹出多个保存对话框被阻止）
-            async function downloadAll() {
-                downloadAllBtn.disabled = true;
-                downloadAllBtn.textContent = '⏳ 下载中...';
-                updateProgress('开始顺序下载，请允许浏览器保存文件...');
-
-                for (let i = 0; i < files.length; i++) {
-                    // 如果已经成功，跳过
-                    if (fileStates[i].status === 'success') {
-                        updateProgress(`${files[i].name} 已经下载，跳过`);
-                        continue;
-                    }
-                    try {
-                        await downloadFile(i);
-                        // 每个文件之间加一个小延迟，让浏览器有时间处理保存对话框
-                        await new Promise(resolve => setTimeout(resolve, 800));
-                    } catch (e) {
-                        updateProgress(`下载中断于 ${files[i].name}`, true);
-                        break;
-                    }
-                }
-
-                // 检查是否全部成功
-                const allDone = fileStates.every(s => s.status === 'success');
-                if (allDone) {
-                    updateProgress('🎉 全部文件下载完成！');
+        async function testUrl() {
+            const log = document.getElementById('log');
+            log.innerHTML = '开始测试...\n';
+            try {
+                const response = await fetch(targetUrl);
+                log.innerHTML += `✅ 请求成功，状态码: ${response.status}\n`;
+                log.innerHTML += `Content-Type: ${response.headers.get('content-type')}\n`;
+                log.innerHTML += `Content-Length: ${response.headers.get('content-length')}\n`;
+                
+                const buffer = await response.arrayBuffer();
+                const bytes = new Uint8Array(buffer);
+                log.innerHTML += `文件大小: ${buffer.byteLength} 字节\n`;
+                log.innerHTML += `前8字节 (hex): ${Array.from(bytes.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' ')}\n`;
+                
+                // 检查 zstd 魔术数字
+                const isZstd = bytes[0] === 0x28 && bytes[1] === 0xB5 && bytes[2] === 0x2F && bytes[3] === 0xFD;
+                if (isZstd) {
+                    log.innerHTML += `✅ 文件是 Zstandard 压缩格式 (v86 标准快照)\n`;
                 } else {
-                    updateProgress('⚠️ 部分文件下载失败，请检查网络或单独重试', true);
+                    log.innerHTML += `⚠️ 文件不是 zstd 格式，可能无法直接加载\n`;
                 }
-
-                downloadAllBtn.disabled = false;
-                downloadAllBtn.textContent = '📦 下载全部文件';
-            }
-
-            function resetStates() {
-                for (let i = 0; i < fileStates.length; i++) {
-                    fileStates[i] = { status: 'pending', message: '' };
+                
+                log.innerHTML += `\n🎉 结论：链接可直接拉取，无 CORS 拦截！`;
+            } catch (err) {
+                log.innerHTML += `❌ 请求失败: ${err.message}\n`;
+                if (err.message.includes('CORS')) {
+                    log.innerHTML += `⚠️ 原因：跨域请求被阻止，需服务器添加 CORS 头`;
                 }
-                renderFileList();
-                updateProgress('');
-                downloadAllBtn.disabled = false;
-                downloadAllBtn.textContent = '📦 下载全部文件';
             }
-
-            // 事件绑定
-            downloadAllBtn.addEventListener('click', downloadAll);
-            resetBtn.addEventListener('click', resetStates);
-
-            // 初始渲染
-            renderFileList();
-            updateProgress('准备就绪');
-        })();
+        }
     </script>
 </body>
 </html>
