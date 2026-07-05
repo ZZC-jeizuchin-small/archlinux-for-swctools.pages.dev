@@ -170,18 +170,6 @@
           <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
         </div>
         <div class="file-item">
-          <div class="file-row"><span class="file-name">Service Worker</span><span class="file-status status-wait">等待中</span></div>
-          <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
-        </div>
-        <div class="file-item">
-          <div class="file-row"><span class="file-name">seabios.bin</span><span class="file-status status-wait">等待中</span></div>
-          <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
-        </div>
-        <div class="file-item">
-          <div class="file-row"><span class="file-name">vgabios.bin</span><span class="file-status status-wait">等待中</span></div>
-          <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
-        </div>
-        <div class="file-item">
           <div class="file-row"><span class="file-name">V86 引擎启动</span><span class="file-status status-wait">等待中</span></div>
           <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
         </div>
@@ -198,8 +186,6 @@
     <div class="drag-handle" id="dragHandle"><div class="drag-bar"></div></div>
   </div>
 
-  <!-- libv86.js 从官方 CDN 加载 -->
-  <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"></script>
   <script>
   (function() {
     const BASE = 'https://archlinux.pages.dev';
@@ -212,13 +198,11 @@
     const fileListContainer = document.getElementById('file-list');
     const closeBtn = document.getElementById('close-loading-btn');
 
+    // 资源列表（移除了 Service Worker 和 BIOS 检测项）
     const items = [
       { id: 'libv86', name: 'libv86.js (CDN)', status: 'pending', progress: 0, message: '' },
       { id: 'wasm', name: 'v86.wasm', status: 'pending', progress: 0, message: '' },
       { id: 'state', name: '状态文件 (state.bin)', status: 'pending', progress: 0, message: '' },
-      { id: 'sw', name: 'Service Worker', status: 'pending', progress: 0, message: '' },
-      { id: 'seabios', name: 'seabios.bin', status: 'pending', progress: 0, message: '' },
-      { id: 'vgabios', name: 'vgabios.bin', status: 'pending', progress: 0, message: '' },
       { id: 'v86engine', name: 'V86 引擎启动', status: 'pending', progress: 0, message: '' }
     ];
 
@@ -265,27 +249,12 @@
       overlay.classList.add('hidden');
     });
 
-    // 1. 监控 libv86.js (CDN)
-    const scriptEl = document.querySelector('script[src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"]');
-    if (scriptEl) {
-      scriptEl.addEventListener('load', () => {
-        updateItem('libv86', { status: 'done', progress: 100 });
-      });
-      scriptEl.addEventListener('error', () => {
-        updateItem('libv86', { status: 'error', message: '脚本加载失败' });
-      });
-    } else {
-      updateItem('libv86', { status: 'error', message: '未找到 <script> 标签' });
-    }
-
-    // 2. 文件 URL
+    // 文件 URL
+    const libv86Url = 'https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js';
     const wasmUrl = BASE + '/v86.wasm';
     const stateUrl = 'https://stuff.aoodyconcor.de/d/local/robin/v86state.bin?sign=rVokpNP7dAffY5DSjoNBAIRyQkww7sTcTdIbEv3hwqY=:0';
-    const swUrl = BASE + '/sw.js';
-    const seabiosUrl = BASE + '/seabios.bin';
-    const vgabiosUrl = BASE + '/vgabios.bin';
 
-    // 3. 下载进度
+    // 下载进度通用函数
     function downloadWithProgress(url, itemId) {
       updateItem(itemId, { status: 'loading', progress: 0 });
       return new Promise((resolve, reject) => {
@@ -316,13 +285,35 @@
       });
     }
 
+    // ========== 1. 优先下载 libv86.js 并动态注入 ==========
+    function loadLibv86() {
+      return new Promise((resolve, reject) => {
+        downloadWithProgress(libv86Url, 'libv86')
+          .then(buffer => {
+            const blob = new Blob([buffer], { type: 'application/javascript' });
+            const script = document.createElement('script');
+            script.src = URL.createObjectURL(blob);
+            script.onload = () => {
+              URL.revokeObjectURL(script.src);
+              resolve();
+            };
+            script.onerror = () => {
+              updateItem('libv86', { status: 'error', message: '脚本执行失败' });
+              reject(new Error('libv86.js 执行失败'));
+            };
+            document.head.appendChild(script);
+          })
+          .catch(reject);
+      });
+    }
+
+    // 2. 同时下载 wasm 和 state
     let wasmBuffer = null;
     let stateBuffer = null;
-
     downloadWithProgress(wasmUrl, 'wasm').then(buf => { wasmBuffer = buf; }).catch(err => console.error(err));
     downloadWithProgress(stateUrl, 'state').then(buf => { stateBuffer = buf; }).catch(err => console.error(err));
 
-    // 拦截 fetch
+    // 3. 拦截 fetch，优先使用本地 buffer
     const originalFetch = window.fetch;
     window.fetch = function(input, init) {
       const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
@@ -335,28 +326,17 @@
       return originalFetch.apply(this, arguments);
     };
 
-    // 4. Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register(swUrl)
-        .then(() => updateItem('sw', { status: 'done', progress: 100 }))
-        .catch(err => updateItem('sw', { status: 'error', message: err.message }));
-    } else {
-      updateItem('sw', { status: 'error', message: '不支持 Service Worker' });
-    }
+    // 4. 所有关键资源就绪后初始化 V86
+    Promise.all([
+      loadLibv86(),
+      downloadWithProgress(wasmUrl, 'wasm'),
+      downloadWithProgress(stateUrl, 'state')
+    ]).then(() => {
+      initV86();
+    }).catch(err => {
+      showAlert('资源加载失败，无法启动模拟器: ' + err.message);
+    });
 
-    // 5. seabios / vgabios 检测
-    function checkFileExists(url, itemId) {
-      fetch(url, { method: 'HEAD' })
-        .then(res => {
-          if (res.ok) updateItem(itemId, { status: 'done', progress: 100, message: '文件存在' });
-          else throw new Error(`HTTP ${res.status}`);
-        })
-        .catch(err => updateItem(itemId, { status: 'error', message: err.message }));
-    }
-    checkFileExists(seabiosUrl, 'seabios');
-    checkFileExists(vgabiosUrl, 'vgabios');
-
-    // 6. 初始化 V86
     function initV86() {
       if (typeof V86 === 'undefined') {
         updateItem('v86engine', { status: 'error', message: 'V86 未定义' });
@@ -398,15 +378,6 @@
         updateItem('v86engine', { status: 'error', message: e.message });
       }
     }
-
-    Promise.all([
-      downloadWithProgress(wasmUrl, 'wasm'),
-      downloadWithProgress(stateUrl, 'state')
-    ]).then(() => {
-      initV86();
-    }).catch(() => {
-      initV86();
-    });
 
     // ========== 虚拟键盘 ==========
     const keyboardDiv = document.getElementById('keyboard');
