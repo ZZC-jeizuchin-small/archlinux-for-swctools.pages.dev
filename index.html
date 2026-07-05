@@ -34,7 +34,6 @@
       left: 0;
     }
 
-    /* 键盘容器 — 完全透明，无边框/阴影/圆角 */
     #keyboard {
       position: fixed;
       width: auto;
@@ -124,8 +123,11 @@
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
-    // ========== V86 初始化 ==========
     if (typeof V86 === 'undefined') return;
+
+    // 使用视口大小作为虚拟机分辨率
+    const viewWidth = window.innerWidth;
+    const viewHeight = window.innerHeight - 8; // 留一点边距
 
     const config = {
       screen_container: screenDiv,
@@ -137,12 +139,13 @@
       disable_keyboard: false,
       disable_speaker: true,
       acpi: true,
+      screen_width: viewWidth,
+      screen_height: viewHeight,
     };
 
     let emulator;
     try { emulator = new V86(config); } catch (e) { return; }
 
-    // ========== 键盘布局 ==========
     const keyRows = [
       {
         keys: [
