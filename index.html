@@ -7,34 +7,34 @@
   <style>
     body {
       margin: 0;
-      padding: 0;
-      background: #000;
+      background: #1a1e2b;
       height: 100vh;
-      overflow: hidden;
+      display: flex;
+      flex-direction: column;
       font-family: 'JetBrains Mono', monospace;
       user-select: none;
       -webkit-user-select: none;
+      overflow: hidden;
     }
 
-    /* 终端全屏固定定位，无边距 */
     #screen-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      flex: 1;
+      position: relative;
       background: #000;
-      z-index: 1;
+      min-height: 0;
+      overflow: hidden;
     }
 
     #screen {
       width: 100%;
       height: 100%;
       border: none;
-      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
     }
 
-    /* 键盘容器 - 透明，水平居中，垂直可拖动 */
+    /* 键盘容器 — 完全透明，水平居中，垂直可拖动 */
     #keyboard {
       position: fixed;
       width: auto;
@@ -49,8 +49,7 @@
       box-sizing: border-box;
       left: 50%;
       transform: translateX(-50%);
-      bottom: 8px;            /* 初始底部距离 */
-      transition: none;
+      bottom: 8px;
     }
 
     .drag-handle {
@@ -125,9 +124,9 @@
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
+    // ========== V86 初始化（完全保留稳定版配置） ==========
     if (typeof V86 === 'undefined') return;
 
-    // 虚拟机配置（不修改分辨率，使用默认文本模式）
     const config = {
       screen_container: screenDiv,
       bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
@@ -143,7 +142,7 @@
     let emulator;
     try { emulator = new V86(config); } catch (e) { return; }
 
-    // ========== 键盘布局 (完全对称，所有键位准确) ==========
+    // ========== 键盘布局（完整键值，修复所有按键） ==========
     const keyRows = [
       {
         keys: [
@@ -349,7 +348,7 @@
 
     buildKeyboard();
 
-    // ========== 拖动：仅垂直移动，保持水平居中 ==========
+    // ========== 拖动：仅垂直移动，水平始终居中 ==========
     let dragging = false;
     let startY;
     let initialTop;
@@ -358,11 +357,11 @@
       e.preventDefault();
       dragging = true;
       startY = e.clientY;
-      // 获取当前 top 值（注意键盘可能由 bottom 定位，需要转换为 top）
       const rect = keyboardDiv.getBoundingClientRect();
-      keyboardDiv.style.bottom = 'auto';
-      keyboardDiv.style.top = rect.top + 'px';
       initialTop = rect.top;
+      // 固定为 top 定位，并移除 bottom
+      keyboardDiv.style.bottom = 'auto';
+      keyboardDiv.style.top = initialTop + 'px';
       dragHandle.setPointerCapture(e.pointerId);
     }
 
@@ -371,7 +370,6 @@
       e.preventDefault();
       const dy = e.clientY - startY;
       let newTop = initialTop + dy;
-      // 边界限制
       const maxTop = window.innerHeight - keyboardDiv.offsetHeight;
       newTop = Math.max(0, Math.min(newTop, maxTop));
       keyboardDiv.style.top = newTop + 'px';
@@ -380,7 +378,6 @@
     function endDrag() {
       if (!dragging) return;
       dragging = false;
-      // 保持水平居中不变
     }
 
     dragHandle.addEventListener('pointerdown', startDrag);
