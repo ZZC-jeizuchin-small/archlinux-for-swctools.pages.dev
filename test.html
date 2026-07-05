@@ -1,569 +1,321 @@
-<!DOCTYPE html>
-<html lang="zh">
+l<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>v86 官方镜像加载验证</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body {
-      background: #1a1e2b;
-      font-family: 'JetBrains Mono', monospace;
-      color: #eee;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
-    #header {
-      background: #2a2f3f;
-      padding: 8px 16px;
-      border-bottom: 1px solid #444;
-      flex-shrink: 0;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-    }
-    #header h1 { font-size: 0.95rem; font-weight: normal; margin-right: auto; }
-    #status-badge {
-      padding: 3px 12px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-    }
-    .badge-idle { background: #555; color: #eee; }
-    .badge-loading { background: #f9a825; color: #000; }
-    .badge-success { background: #4caf50; color: #fff; }
-    .badge-error { background: #e53935; color: #fff; }
-
-    #controls {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    #controls input[type="text"] {
-      background: #3f4352;
-      color: #eee;
-      border: 1px solid #6a6e7b;
-      padding: 3px 6px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      width: 280px;
-      font-family: inherit;
-    }
-    .btn {
-      background: #4a6a9e;
-      border: none;
-      color: white;
-      padding: 3px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.75rem;
-      font-family: inherit;
-    }
-    .btn:hover { background: #5a7aae; }
-    .btn:disabled { opacity:0.5; cursor:not-allowed; }
-    .btn-test { background: #6a6e7b; }
-    .btn-test:hover { background: #7a7e8b; }
-    .btn-clear { background: #7a4a4a; }
-    .btn-clear:hover { background: #9a5a5a; }
-
-    #resource-list {
-      padding: 6px 16px;
-      background: #0f1219;
-      flex-shrink: 0;
-      max-height: 150px;
-      overflow-y: auto;
-      border-bottom: 1px solid #333;
-    }
-    .resource-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 2px 0;
-      font-size: 0.7rem;
-      border-bottom: 1px solid #222;
-    }
-    .resource-item .name {
-      flex: 0 0 160px;
-      color: #aaa;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .resource-item .status {
-      flex: 0 0 70px;
-      font-weight: bold;
-    }
-    .resource-item .progress-wrap {
-      flex: 1;
-      height: 4px;
-      background: #3f4352;
-      border-radius: 2px;
-      overflow: hidden;
-      min-width: 50px;
-    }
-    .resource-item .progress-fill {
-      height: 100%;
-      width: 0%;
-      background: #6a8e4b;
-      transition: width 0.3s;
-    }
-    .resource-item .size {
-      flex: 0 0 70px;
-      text-align: right;
-      color: #888;
-    }
-    .status-ok { color: #8bc34a; }
-    .status-err { color: #ef5350; }
-    .status-loading { color: #ffb74d; }
-    .status-idle { color: #888; }
-
-    #screen-container {
-      flex: 1;
-      position: relative;
-      background: #000;
-      min-height: 0;
-    }
-    #screen {
-      width: 100%;
-      height: 100%;
-      border: none;
-      display: block;
-    }
-    #log {
-      background: #0f1219;
-      padding: 4px 16px;
-      font-size: 0.7rem;
-      height: 70px;
-      overflow-y: auto;
-      border-top: 1px solid #333;
-      flex-shrink: 0;
-      font-family: monospace;
-      line-height: 1.5;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-    .err-text { color: #ef5350; }
-    .ok-text { color: #8bc34a; }
-    .info-text { color: #64b5f6; }
-    .warn-text { color: #ffb74d; }
-    .link { color: #64b5f6; cursor: pointer; text-decoration: underline; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v86 资源离线下载器</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --card: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --hover: #1f242e;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 700px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 28px 24px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        h1 {
+            font-size: 1.4rem;
+            margin-bottom: 6px;
+            color: var(--accent);
+        }
+        .sub {
+            font-size: 0.82rem;
+            color: #8b949e;
+            margin-bottom: 24px;
+        }
+        .file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .file-name {
+            font-size: 0.85rem;
+            word-break: break-all;
+            color: var(--text);
+        }
+        .file-size {
+            font-size: 0.75rem;
+            color: #8b949e;
+            margin-left: 10px;
+        }
+        .btn {
+            padding: 6px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--hover);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-family: inherit;
+            transition: background 0.2s, border-color 0.2s;
+            white-space: nowrap;
+        }
+        .btn:hover { background: #30363d; border-color: #58a6ff; }
+        .btn.primary {
+            background: #238636;
+            border-color: #2ea043;
+            color: #fff;
+            font-weight: 600;
+        }
+        .btn.primary:hover { background: #2ea043; }
+        .btn.danger { background: #8b1e1e; border-color: #da3633; color: #fff; }
+        .progress {
+            margin-top: 16px;
+            font-size: 0.8rem;
+            color: #8b949e;
+        }
+        .status {
+            margin-left: 10px;
+            font-size: 0.75rem;
+        }
+        .status.success { color: var(--green); }
+        .status.error { color: var(--red); }
+        hr {
+            margin: 20px 0;
+            border: none;
+            border-top: 1px solid var(--border);
+        }
+        .note {
+            font-size: 0.78rem;
+            color: #6e7681;
+            line-height: 1.6;
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <h1>⬇️ v86 资源离线下载器</h1>
+        <div class="sub">用于 archlinux.html 的 5 个外部文件</div>
 
-  <div id="header">
-    <h1>🐧 v86 官方镜像加载器</h1>
-    <div id="controls">
-      <input type="text" id="isoUrl" value="https://copy.sh/v86/images/linux.iso" spellcheck="false">
-      <button class="btn btn-test" id="testBtn">🔍 测试</button>
-      <button class="btn" id="loadBtn">🚀 加载</button>
-      <button class="btn btn-clear" id="clearBtn">🗑 清日志</button>
+        <div class="file-list" id="fileList"></div>
+
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button class="btn primary" id="downloadAllBtn">📦 下载全部文件</button>
+            <button class="btn" id="resetBtn">🔄 重置状态</button>
+        </div>
+
+        <div class="progress" id="progress"></div>
+        <hr>
+        <div class="note">
+            💡 点击“下载全部”会依次抓取并保存每个文件。浏览器可能要求允许多个下载。
+            <br>📁 所有文件托管在 jsdelivr CDN，支持 CORS 跨域下载。
+            <br>🔧 下载后请将文件放在同一目录，并修改 archlinux.html 中的 URL 为相对路径。
+        </div>
     </div>
-    <span id="status-badge" class="badge-idle">待机</span>
-  </div>
 
-  <div id="resource-list"></div>
+    <script>
+        (function() {
+            // 需要下载的文件列表
+            const files = [
+                {
+                    name: 'libv86.js',
+                    url: 'https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js',
+                    desc: 'v86 主库'
+                },
+                {
+                    name: 'v86.wasm',
+                    url: 'https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm',
+                    desc: 'WebAssembly 核心'
+                },
+                {
+                    name: 'seabios.bin',
+                    url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin',
+                    desc: 'BIOS 固件'
+                },
+                {
+                    name: 'vgabios.bin',
+                    url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin',
+                    desc: 'VGA BIOS'
+                },
+                {
+                    name: 'linux.iso',
+                    url: 'https://cdn.jsdelivr.net/gh/copy/images@master/linux.iso',
+                    desc: 'Buildroot 镜像'
+                }
+            ];
 
-  <div id="screen-container">
-    <div id="screen"></div>
-  </div>
+            const fileListEl = document.getElementById('fileList');
+            const progressEl = document.getElementById('progress');
+            const downloadAllBtn = document.getElementById('downloadAllBtn');
+            const resetBtn = document.getElementById('resetBtn');
 
-  <div id="log">[系统] 就绪，点击「加载」开始下载并启动 v86 模拟器</div>
+            // 存储每个文件的状态
+            const fileStates = files.map(() => ({ status: 'pending', message: '' }));
 
-  <!-- v86 库 -->
-  <script src="https://cdn.jsdelivr.net/npm/v86@latest/build/libv86.js"
-          onload="onLibLoaded()"
-          onerror="onLibError()">
-  </script>
+            // 渲染文件列表
+            function renderFileList() {
+                fileListEl.innerHTML = files.map((file, index) => {
+                    const state = fileStates[index];
+                    let statusHtml = '';
+                    if (state.status === 'downloading') {
+                        statusHtml = `<span class="status">⏳ 下载中...</span>`;
+                    } else if (state.status === 'success') {
+                        statusHtml = `<span class="status success">✅ 已保存</span>`;
+                    } else if (state.status === 'error') {
+                        statusHtml = `<span class="status error">❌ ${state.message}</span>`;
+                    } else {
+                        statusHtml = `<span class="status" style="color:#6e7681;">⏸️ 等待</span>`;
+                    }
+                    return `
+                        <div class="file-item">
+                            <div style="display:flex; align-items:baseline; flex-wrap:wrap;">
+                                <span class="file-name">${file.name}</span>
+                                <span class="file-size">(${file.desc})</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                ${statusHtml}
+                                <button class="btn download-single" data-index="${index}">⬇️ 单独下载</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
 
-  <script>
-  (function() {
-    // ---------- 固定资源 ----------
-    const FIXED = [
-      {
-        id: 'libv86',
-        name: 'libv86.js',
-        type: 'script',
-        loaded: false,
-        error: false,
-      },
-      {
-        id: 'bios',
-        name: 'BIOS (seabios)',
-        url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin',
-        fallbackUrl: 'https://raw.githubusercontent.com/copy/v86/master/bios/seabios.bin',
-        type: 'fetch',
-        loaded: false,
-        error: false,
-        size: 0,
-        progress: 0,
-      },
-      {
-        id: 'vga_bios',
-        name: 'VGA BIOS',
-        url: 'https://cdn.jsdelivr.net/gh/copy/v86@master/bios/vgabios.bin',
-        fallbackUrl: 'https://raw.githubusercontent.com/copy/v86/master/bios/vgabios.bin',
-        type: 'fetch',
-        loaded: false,
-        error: false,
-        size: 0,
-        progress: 0,
-      },
-      {
-        id: 'wasm',
-        name: 'v86.wasm (内部)',
-        type: 'internal',
-        loaded: false,
-        error: false,
-      }
-    ];
-
-    // ISO 资源（动态）
-    let isoResource = {
-      id: 'cdrom',
-      name: 'ISO 镜像',
-      type: 'fetch',
-      loaded: false,
-      error: false,
-      size: 0,
-      progress: 0,
-    };
-
-    let allResources = [...FIXED, isoResource];
-    let downloadedData = {};
-    let libLoaded = false;
-    let libError = false;
-    let emulator = null;
-    let isEmulatorStarted = false;
-
-    // DOM
-    const listEl = document.getElementById('resource-list');
-    const logEl = document.getElementById('log');
-    const statusBadge = document.getElementById('status-badge');
-    const screenDiv = document.getElementById('screen');
-    const isoInput = document.getElementById('isoUrl');
-    const loadBtn = document.getElementById('loadBtn');
-    const testBtn = document.getElementById('testBtn');
-    const clearBtn = document.getElementById('clearBtn');
-
-    // ---------- 辅助函数 ----------
-    function log(msg, type) {
-      const cls = type === 'err' ? 'err-text' : (type === 'ok' ? 'ok-text' : (type === 'warn' ? 'warn-text' : 'info-text'));
-      const prefix = type === 'err' ? '[✗] ' : (type === 'ok' ? '[✓] ' : (type === 'warn' ? '[⚠] ' : '[i] '));
-      logEl.innerHTML += `<span class="${cls}">${prefix}${msg}</span>\n`;
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    function updateBadge(state, text) {
-      statusBadge.textContent = text || state;
-      statusBadge.className = 'badge-' + state;
-    }
-
-    function renderResources() {
-      listEl.innerHTML = '';
-      allResources.forEach(res => {
-        const item = document.createElement('div');
-        item.className = 'resource-item';
-        item.dataset.id = res.id;
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'name';
-        nameSpan.textContent = res.name;
-        item.appendChild(nameSpan);
-
-        const statusSpan = document.createElement('span');
-        statusSpan.className = 'status';
-        statusSpan.textContent = '等待';
-        item.appendChild(statusSpan);
-
-        const progressWrap = document.createElement('div');
-        progressWrap.className = 'progress-wrap';
-        const progressFill = document.createElement('div');
-        progressFill.className = 'progress-fill';
-        progressWrap.appendChild(progressFill);
-        item.appendChild(progressWrap);
-
-        const sizeSpan = document.createElement('span');
-        sizeSpan.className = 'size';
-        sizeSpan.textContent = '--';
-        item.appendChild(sizeSpan);
-
-        listEl.appendChild(item);
-        res._dom = { item, statusSpan, progressFill, sizeSpan };
-      });
-    }
-    renderResources();
-
-    function updateResource(id, status, progress, size) {
-      const res = allResources.find(r => r.id === id);
-      if (!res || !res._dom) return;
-      const { statusSpan, progressFill, sizeSpan } = res._dom;
-      statusSpan.textContent = status;
-      statusSpan.className = 'status';
-      if (status === '已加载' || status === '完成') statusSpan.classList.add('status-ok');
-      else if (status === '错误') statusSpan.classList.add('status-err');
-      else if (status === '下载中' || status === '加载中') statusSpan.classList.add('status-loading');
-      else statusSpan.classList.add('status-idle');
-      if (typeof progress === 'number') progressFill.style.width = Math.min(progress, 100) + '%';
-      else progressFill.style.width = '0%';
-      if (typeof size === 'number' && size > 0) sizeSpan.textContent = (size/1024/1024).toFixed(1)+' MB';
-      else sizeSpan.textContent = '--';
-    }
-
-    // ---------- 带重试的 fetch（支持超时） ----------
-    async function fetchWithRetry(res, retries = 2) {
-      const urls = [res.url, res.fallbackUrl].filter(Boolean);
-      let lastError = null;
-      for (let i = 0; i < urls.length && i <= retries; i++) {
-        const url = urls[i % urls.length];
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 120000); // 2分钟超时
-          const response = await fetch(url, { signal: controller.signal });
-          clearTimeout(timeout);
-          if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
-          const total = parseInt(response.headers.get('content-length'), 10) || 0;
-          if (total > 0) { res.size = total; updateResource(res.id, '下载中', 0, total); }
-
-          const reader = response.body.getReader();
-          const chunks = [];
-          let loaded = 0;
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            loaded += value.length;
-            if (total > 0) {
-              const pct = Math.round((loaded / total) * 100);
-              updateResource(res.id, '下载中', pct, total);
-            } else {
-              updateResource(res.id, '下载中', 0, loaded);
+                // 绑定单个下载事件
+                document.querySelectorAll('.download-single').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const index = parseInt(e.target.dataset.index);
+                        downloadSingleFile(index);
+                    });
+                });
             }
-          }
-          const data = new Uint8Array(chunks.reduce((acc, c) => acc + c.length, 0));
-          let offset = 0;
-          for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
-          res.loaded = true;
-          res.error = false;
-          updateResource(res.id, '已加载', 100, res.size);
-          downloadedData[res.id] = data.buffer;
-          log(`${res.name} 下载完成 (${(res.size/1024/1024).toFixed(1)} MB)`, 'ok');
-          return data.buffer;
-        } catch (err) {
-          lastError = err;
-          log(`${res.name} 从 ${urls[i % urls.length]} 下载失败: ${err.message}`, 'err');
-          if (i < retries) log(`尝试备用源...`, 'warn');
-        }
-      }
-      res.error = true;
-      updateResource(res.id, '错误', 0, 0);
-      throw new Error(`所有下载尝试失败: ${lastError.message}`);
-    }
 
-    // ---------- 测试连接 ----------
-    async function testUrl(url) {
-      try {
-        const resp = await fetch(url, { method: 'HEAD' });
-        if (resp.ok) {
-          const size = resp.headers.get('content-length');
-          log(`✅ 镜像可访问，大小: ${size ? (parseInt(size)/1024/1024).toFixed(1)+' MB' : '未知'}`, 'ok');
-          return true;
-        } else {
-          log(`❌ 镜像返回状态: ${resp.status}`, 'err');
-          return false;
-        }
-      } catch (e) {
-        log(`❌ 连接失败: ${e.message}`, 'err');
-        return false;
-      }
-    }
+            // 更新进度文字
+            function updateProgress(text, isError = false) {
+                progressEl.textContent = text;
+                progressEl.style.color = isError ? 'var(--red)' : '#8b949e';
+            }
 
-    // ---------- 加载主流程 ----------
-    async function loadAll() {
-      loadBtn.disabled = true;
-      testBtn.disabled = true;
-      isoInput.disabled = true;
-      updateBadge('loading', '加载中...');
+            // 下载单个文件（返回 Promise）
+            async function downloadFile(index) {
+                const file = files[index];
+                fileStates[index] = { status: 'downloading', message: '' };
+                renderFileList();
+                updateProgress(`正在下载 ${file.name} ...`);
 
-      // 重置 ISO 状态
-      isoResource.loaded = false;
-      isoResource.error = false;
-      isoResource.progress = 0;
-      isoResource.size = 0;
-      isoResource.url = isoInput.value.trim();
-      isoResource.name = 'ISO 镜像 (' + isoResource.url.split('/').pop() + ')';
-      updateResource('cdrom', '等待', 0, 0);
+                try {
+                    const response = await fetch(file.url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    const blob = await response.blob();
+                    // 使用 Blob URL 触发下载
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = file.name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    // 延迟释放 URL
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
 
-      // 重置 wasm 状态
-      const wasmRes = allResources.find(r => r.id === 'wasm');
-      wasmRes.loaded = false;
-      wasmRes.error = false;
-      updateResource('wasm', '等待', 0, 0);
+                    fileStates[index] = { status: 'success', message: '' };
+                    updateProgress(`${file.name} 下载完成`);
+                } catch (err) {
+                    fileStates[index] = { status: 'error', message: err.message };
+                    updateProgress(`下载 ${file.name} 失败: ${err.message}`, true);
+                    throw err; // 中断后续下载
+                }
+                renderFileList();
+            }
 
-      // 重置模拟器
-      isEmulatorStarted = false;
-      if (emulator) { try { emulator.destroy(); } catch(e) {} emulator = null; }
-      screenDiv.innerHTML = '';
+            // 单个文件下载（点击按钮）
+            async function downloadSingleFile(index) {
+                const state = fileStates[index];
+                if (state.status === 'downloading') return;
+                try {
+                    await downloadFile(index);
+                } catch (e) {
+                    // 错误已在 downloadFile 中处理
+                }
+            }
 
-      try {
-        // 下载固定资源（如果尚未加载）
-        const fixedFetch = FIXED.filter(r => r.type === 'fetch' && !r.loaded);
-        const promises = fixedFetch.map(r => fetchWithRetry(r));
-        promises.push(fetchWithRetry(isoResource));
+            // 下载全部（顺序下载，避免浏览器同时弹出多个保存对话框被阻止）
+            async function downloadAll() {
+                downloadAllBtn.disabled = true;
+                downloadAllBtn.textContent = '⏳ 下载中...';
+                updateProgress('开始顺序下载，请允许浏览器保存文件...');
 
-        await Promise.all(promises);
-        // 检查错误
-        const allFetch = allResources.filter(r => r.type === 'fetch');
-        if (allFetch.some(r => r.error)) {
-          log('部分资源下载失败，无法启动', 'err');
-          updateBadge('error', '下载失败');
-        } else if (!libLoaded) {
-          log('等待 libv86.js 加载...', 'warn');
-        } else {
-          startEmulator();
-        }
-      } catch (e) {
-        log('下载过程异常: ' + e.message, 'err');
-        updateBadge('error', '异常');
-      } finally {
-        loadBtn.disabled = false;
-        testBtn.disabled = false;
-        isoInput.disabled = false;
-      }
-    }
+                for (let i = 0; i < files.length; i++) {
+                    // 如果已经成功，跳过
+                    if (fileStates[i].status === 'success') {
+                        updateProgress(`${files[i].name} 已经下载，跳过`);
+                        continue;
+                    }
+                    try {
+                        await downloadFile(i);
+                        // 每个文件之间加一个小延迟，让浏览器有时间处理保存对话框
+                        await new Promise(resolve => setTimeout(resolve, 800));
+                    } catch (e) {
+                        updateProgress(`下载中断于 ${files[i].name}`, true);
+                        break;
+                    }
+                }
 
-    // ---------- 启动 v86 ----------
-    function startEmulator() {
-      if (isEmulatorStarted) return;
-      if (!downloadedData.bios || !downloadedData.vga_bios || !downloadedData.cdrom) {
-        log('缺少必要资源，无法启动', 'err');
-        return;
-      }
-      log('所有资源就绪，启动模拟器...', 'ok');
-      updateBadge('loading', '启动中');
-      isEmulatorStarted = true;
+                // 检查是否全部成功
+                const allDone = fileStates.every(s => s.status === 'success');
+                if (allDone) {
+                    updateProgress('🎉 全部文件下载完成！');
+                } else {
+                    updateProgress('⚠️ 部分文件下载失败，请检查网络或单独重试', true);
+                }
 
-      const config = {
-        screen_container: screenDiv,
-        bios: { buffer: downloadedData.bios },
-        vga_bios: { buffer: downloadedData.vga_bios },
-        cdrom: { buffer: downloadedData.cdrom },
-        wasm_path: "https://cdn.jsdelivr.net/npm/v86@latest/build/v86.wasm",
-        memory: 1024,
-        autostart: true,
-        disable_keyboard: false,
-        disable_speaker: true,
-        acpi: true,
-      };
+                downloadAllBtn.disabled = false;
+                downloadAllBtn.textContent = '📦 下载全部文件';
+            }
 
-      try {
-        emulator = new V86(config);
-        log('V86 实例创建成功', 'ok');
+            function resetStates() {
+                for (let i = 0; i < fileStates.length; i++) {
+                    fileStates[i] = { status: 'pending', message: '' };
+                }
+                renderFileList();
+                updateProgress('');
+                downloadAllBtn.disabled = false;
+                downloadAllBtn.textContent = '📦 下载全部文件';
+            }
 
-        emulator.add_listener("emulator-loaded", function() {
-          const wasmRes = allResources.find(r => r.id === 'wasm');
-          wasmRes.loaded = true;
-          updateResource('wasm', '已加载', 100, 0);
-          log('v86.wasm 加载完成', 'ok');
-          updateBadge('success', '运行中');
-        });
+            // 事件绑定
+            downloadAllBtn.addEventListener('click', downloadAll);
+            resetBtn.addEventListener('click', resetStates);
 
-        emulator.add_listener("error", function(err) {
-          log('模拟器错误: ' + (err.message || JSON.stringify(err)), 'err');
-          updateBadge('error', '运行错误');
-        });
-
-        let firstUpdate = true;
-        emulator.add_listener("screen-update", function() {
-          if (firstUpdate) {
-            log('屏幕更新 — 引导开始', 'ok');
-            firstUpdate = false;
-          }
-        });
-
-        // 超时检测 WASM
-        let timeout = setTimeout(() => {
-          const wasmRes = allResources.find(r => r.id === 'wasm');
-          if (!wasmRes.loaded) {
-            log('⚠️ WASM 加载超时 (30s)', 'warn');
-            updateResource('wasm', '超时', 0, 0);
-          }
-        }, 30000);
-        emulator.add_listener("emulator-loaded", () => clearTimeout(timeout));
-
-      } catch (e) {
-        log('创建模拟器异常: ' + e.message, 'err');
-        updateBadge('error', '启动失败');
-        isEmulatorStarted = false;
-      }
-    }
-
-    // ---------- 事件绑定 ----------
-    loadBtn.addEventListener('click', loadAll);
-
-    testBtn.addEventListener('click', async function() {
-      const url = isoInput.value.trim();
-      log(`测试连接: ${url}`, 'info');
-      await testUrl(url);
-    });
-
-    clearBtn.addEventListener('click', function() {
-      logEl.innerHTML = '';
-      log('日志已清空', 'info');
-    });
-
-    // 回车键触发加载
-    isoInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') loadAll();
-    });
-
-    // ---------- libv86.js 回调 ----------
-    window.onLibLoaded = function() {
-      libLoaded = true;
-      const libRes = allResources.find(r => r.id === 'libv86');
-      libRes.loaded = true;
-      updateResource('libv86', '已加载', 100, 0);
-      log('libv86.js 加载成功', 'ok');
-      // 如果其他资源已准备好且未启动，则启动
-      const fetchRes = allResources.filter(r => r.type === 'fetch');
-      if (fetchRes.every(r => r.loaded) && !fetchRes.some(r => r.error) && !isEmulatorStarted) {
-        startEmulator();
-      }
-    };
-
-    window.onLibError = function() {
-      libError = true;
-      updateResource('libv86', '错误', 0, 0);
-      log('libv86.js 加载失败', 'err');
-      updateBadge('error', '库加载失败');
-    };
-
-    // 如果库已经加载（缓存）
-    if (typeof V86 !== 'undefined') {
-      if (!libLoaded) {
-        libLoaded = true;
-        const libRes = allResources.find(r => r.id === 'libv86');
-        libRes.loaded = true;
-        updateResource('libv86', '已加载 (缓存)', 100, 0);
-        log('libv86.js 已就绪 (缓存)', 'ok');
-      }
-    }
-
-    // 初始化显示
-    isoResource.url = isoInput.value.trim();
-    updateResource('cdrom', '等待', 0, 0);
-    log('页面就绪。默认镜像为 v86 官方测试镜像 (linux.iso)', 'info');
-    log('你也可以在输入框中粘贴其他 ISO 地址进行测试', 'info');
-    updateBadge('idle', '就绪');
-
-    // 全局错误捕获
-    window.addEventListener('unhandledrejection', e => {
-      log('未捕获的 Promise 错误: ' + e.reason, 'err');
-    });
-  })();
-  </script>
+            // 初始渲染
+            renderFileList();
+            updateProgress('准备就绪');
+        })();
+    </script>
 </body>
 </html>
