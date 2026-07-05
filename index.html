@@ -7,33 +7,34 @@
   <style>
     body {
       margin: 0;
-      background: #1a1e2b;
+      padding: 0;
+      background: #000;
       height: 100vh;
-      display: flex;
-      flex-direction: column;
+      overflow: hidden;
       font-family: 'JetBrains Mono', monospace;
       user-select: none;
       -webkit-user-select: none;
-      overflow: hidden;
     }
 
+    /* 终端全屏固定定位，无边距 */
     #screen-container {
-      flex: 1;
-      position: relative;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       background: #000;
-      min-height: 0;
-      overflow: hidden;
+      z-index: 1;
     }
 
     #screen {
       width: 100%;
       height: 100%;
       border: none;
-      position: absolute;
-      top: 0;
-      left: 0;
+      display: block;
     }
 
+    /* 键盘容器 - 透明，水平居中，垂直可拖动 */
     #keyboard {
       position: fixed;
       width: auto;
@@ -47,8 +48,9 @@
       touch-action: none;
       box-sizing: border-box;
       left: 50%;
-      bottom: 8px;
       transform: translateX(-50%);
+      bottom: 8px;            /* 初始底部距离 */
+      transition: none;
     }
 
     .drag-handle {
@@ -125,10 +127,7 @@
 
     if (typeof V86 === 'undefined') return;
 
-    // 使用视口大小作为虚拟机分辨率
-    const viewWidth = window.innerWidth;
-    const viewHeight = window.innerHeight - 8; // 留一点边距
-
+    // 虚拟机配置（不修改分辨率，使用默认文本模式）
     const config = {
       screen_container: screenDiv,
       bios: { url: "https://cdn.jsdelivr.net/gh/copy/v86@master/bios/seabios.bin" },
@@ -139,13 +138,12 @@
       disable_keyboard: false,
       disable_speaker: true,
       acpi: true,
-      screen_width: viewWidth,
-      screen_height: viewHeight,
     };
 
     let emulator;
     try { emulator = new V86(config); } catch (e) { return; }
 
+    // ========== 键盘布局 (完全对称，所有键位准确) ==========
     const keyRows = [
       {
         keys: [
@@ -351,57 +349,49 @@
 
     buildKeyboard();
 
-    // 拖动
+    // ========== 拖动：仅垂直移动，保持水平居中 ==========
     let dragging = false;
-    let dragStartX, dragStartY;
-    let initialLeft, initialTop;
+    let startY;
+    let initialTop;
 
     function startDrag(e) {
       e.preventDefault();
       dragging = true;
-      dragStartX = e.clientX;
-      dragStartY = e.clientY;
+      startY = e.clientY;
+      // 获取当前 top 值（注意键盘可能由 bottom 定位，需要转换为 top）
       const rect = keyboardDiv.getBoundingClientRect();
-      initialLeft = rect.left;
-      initialTop = rect.top;
-      keyboardDiv.style.transform = 'none';
-      keyboardDiv.style.left = initialLeft + 'px';
-      keyboardDiv.style.top = initialTop + 'px';
       keyboardDiv.style.bottom = 'auto';
+      keyboardDiv.style.top = rect.top + 'px';
+      initialTop = rect.top;
       dragHandle.setPointerCapture(e.pointerId);
     }
 
     function moveDrag(e) {
       if (!dragging) return;
       e.preventDefault();
-      const dx = e.clientX - dragStartX;
-      const dy = e.clientY - dragStartY;
-      let newLeft = initialLeft + dx;
+      const dy = e.clientY - startY;
       let newTop = initialTop + dy;
-      const maxLeft = window.innerWidth - keyboardDiv.offsetWidth;
+      // 边界限制
       const maxTop = window.innerHeight - keyboardDiv.offsetHeight;
-      newLeft = Math.max(0, Math.min(newLeft, maxLeft));
       newTop = Math.max(0, Math.min(newTop, maxTop));
-      keyboardDiv.style.left = newLeft + 'px';
       keyboardDiv.style.top = newTop + 'px';
     }
 
     function endDrag() {
       if (!dragging) return;
       dragging = false;
+      // 保持水平居中不变
     }
 
     dragHandle.addEventListener('pointerdown', startDrag);
     document.addEventListener('pointermove', moveDrag);
     document.addEventListener('pointerup', endDrag);
 
-    function initialPosition() {
-      keyboardDiv.style.left = '50%';
-      keyboardDiv.style.top = 'auto';
-      keyboardDiv.style.bottom = '8px';
-      keyboardDiv.style.transform = 'translateX(-50%)';
-    }
-    initialPosition();
+    // 初始位置：水平居中，距底部 8px
+    keyboardDiv.style.bottom = '8px';
+    keyboardDiv.style.top = 'auto';
+    keyboardDiv.style.left = '50%';
+    keyboardDiv.style.transform = 'translateX(-50%)';
 
   })();
   </script>
