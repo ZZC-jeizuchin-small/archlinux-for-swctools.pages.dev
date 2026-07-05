@@ -18,13 +18,10 @@
       -webkit-user-select: none;
     }
 
-    /* 全屏加载浮窗 - 强制置顶，不透明背景 */
+    /* 全屏加载浮窗 */
     #loading-overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0, 0, 0, 0.96);
       backdrop-filter: blur(12px);
       z-index: 9999;
@@ -112,7 +109,6 @@
     }
     #close-loading-btn:hover { background: #30363d; }
 
-    /* 终端容器 */
     #screen-container {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -121,7 +117,6 @@
     }
     #screen { width: 100%; height: 100%; border: none; }
 
-    /* 虚拟键盘 */
     #keyboard {
       position: fixed;
       width: auto;
@@ -158,12 +153,10 @@
   </style>
 </head>
 <body>
-  <!-- 全屏加载浮窗 - 一开始就可见 -->
   <div id="loading-overlay">
     <div class="loading-box">
       <div class="loading-title">📡 系统资源加载状态</div>
       <div id="file-list" class="file-list">
-        <!-- 静态占位，JS 会替换为动态列表 -->
         <div class="file-item">
           <div class="file-row"><span class="file-name">libv86.js</span><span class="file-status status-wait">等待中</span></div>
           <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
@@ -197,22 +190,20 @@
     <div class="drag-handle" id="dragHandle"><div class="drag-bar"></div></div>
   </div>
 
-  <script src="./libv86.js"></script>
+  <!-- 使用绝对路径加载 libv86.js -->
+  <script src="https://archlinux.pages.dev/libv86.js"></script>
   <script>
-  alert("you are using v86")
   (function() {
-    // ==================== 全局错误提示 ====================
-    function showError(msg) {
-      console.error(msg);
+    const BASE = 'https://archlinux.pages.dev';
+
+    function showAlert(msg) {
       alert('⚠️ ' + msg);
     }
 
-    // ==================== 浮窗 DOM ====================
     const overlay = document.getElementById('loading-overlay');
     const fileListContainer = document.getElementById('file-list');
     const closeBtn = document.getElementById('close-loading-btn');
 
-    // 7个监控项（包含 libv86, wasm, state, sw, seabios, vgabios, v86引擎）
     const items = [
       { id: 'libv86', name: 'libv86.js', status: 'pending', progress: 0, message: '' },
       { id: 'wasm', name: 'v86.wasm', status: 'pending', progress: 0, message: '' },
@@ -224,7 +215,6 @@
     ];
 
     function renderList() {
-      if (!fileListContainer) return;
       fileListContainer.innerHTML = items.map(item => {
         let statusClass = 'status-wait';
         let statusText = '等待中';
@@ -248,30 +238,47 @@
 
     function updateItem(id, data) {
       const item = items.find(i => i.id === id);
-      if (item) {
-        Object.assign(item, data);
-        renderList();
+      if (!item) return;
+      const prevStatus = item.status;
+      Object.assign(item, data);
+      renderList();
+
+      // 仅在状态变化为 done 或 error 时弹出 alert
+      if ((data.status === 'done' || data.status === 'error') && data.status !== prevStatus) {
+        const msg = data.status === 'done'
+          ? `${item.name} 加载成功`
+          : `${item.name} 失败: ${data.message || '未知错误'}`;
+        showAlert(msg);
       }
     }
 
-    // 初始渲染
     renderList();
 
-    // 关闭浮窗
     closeBtn.addEventListener('click', () => {
       overlay.classList.add('hidden');
     });
 
-    // ==================== 1. 监控 libv86.js ====================
-    const scriptEl = document.querySelector('script[src="./libv86.js"]');
+    // 1. 监控 libv86.js（绝对路径）
+    const scriptEl = document.querySelector('script[src="https://archlinux.pages.dev/libv86.js"]');
     if (scriptEl) {
-      scriptEl.addEventListener('load', () => updateItem('libv86', { status: 'done', progress: 100 }));
-      scriptEl.addEventListener('error', () => updateItem('libv86', { status: 'error', message: '脚本加载失败' }));
+      scriptEl.addEventListener('load', () => {
+        updateItem('libv86', { status: 'done', progress: 100 });
+      });
+      scriptEl.addEventListener('error', () => {
+        updateItem('libv86', { status: 'error', message: '脚本加载失败' });
+      });
     } else {
       updateItem('libv86', { status: 'error', message: '未找到 <script> 标签' });
     }
 
-    // ==================== 2. 使用 XHR 监控 wasm 和 state 下载进度 ====================
+    // 2. 定义文件 URL（绝对路径）
+    const wasmUrl = BASE + '/v86.wasm';
+    const stateUrl = 'https://stuff.aoodyconcor.de/d/local/robin/v86state.bin?sign=rVokpNP7dAffY5DSjoNBAIRyQkww7sTcTdIbEv3hwqY=:0';
+    const swUrl = BASE + '/sw.js';
+    const seabiosUrl = BASE + '/seabios.bin';
+    const vgabiosUrl = BASE + '/vgabios.bin';
+
+    // 3. 下载进度监控函数
     function downloadWithProgress(url, itemId) {
       updateItem(itemId, { status: 'loading', progress: 0 });
       return new Promise((resolve, reject) => {
@@ -302,20 +309,14 @@
       });
     }
 
-    // 劫持 v86 的 wasm 和 state 加载，使用预下载的 buffer
-    const wasmUrl = './v86.wasm';
-    const stateUrl = 'https://stuff.aoodyconcor.de/d/local/robin/v86state.bin?sign=rVokpNP7dAffY5DSjoNBAIRyQkww7sTcTdIbEv3hwqY=:0';
-
-    // 保存原始的 WebAssembly.instantiateStreaming 和 fetch，避免循环
-    const originalFetch = window.fetch;
     let wasmBuffer = null;
     let stateBuffer = null;
 
-    // 预下载这两个文件
     downloadWithProgress(wasmUrl, 'wasm').then(buf => { wasmBuffer = buf; }).catch(err => console.error(err));
     downloadWithProgress(stateUrl, 'state').then(buf => { stateBuffer = buf; }).catch(err => console.error(err));
 
-    // 重写 fetch，当 v86 请求这两个文件时直接返回 buffer
+    // 拦截 fetch，使用本地 buffer
+    const originalFetch = window.fetch;
     window.fetch = function(input, init) {
       const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
       if (url === wasmUrl && wasmBuffer) {
@@ -327,32 +328,40 @@
       return originalFetch.apply(this, arguments);
     };
 
-    // ==================== 3. Service Worker 注册 ====================
+    // 4. Service Worker 注册
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js')
-        .then(() => updateItem('sw', { status: 'done', progress: 100 }))
-        .catch(err => updateItem('sw', { status: 'error', message: err.message }));
+      navigator.serviceWorker.register(swUrl)
+        .then(() => {
+          updateItem('sw', { status: 'done', progress: 100 });
+        })
+        .catch(err => {
+          updateItem('sw', { status: 'error', message: err.message });
+        });
     } else {
       updateItem('sw', { status: 'error', message: '不支持 Service Worker' });
     }
 
-    // ==================== 4. seabios / vgabios 存在性检测 ====================
+    // 5. seabios / vgabios 存在性检测
     function checkFileExists(url, itemId) {
       fetch(url, { method: 'HEAD' })
         .then(res => {
-          if (res.ok) updateItem(itemId, { status: 'done', progress: 100, message: '文件存在 (未使用)' });
-          else throw new Error(`HTTP ${res.status}`);
+          if (res.ok) {
+            updateItem(itemId, { status: 'done', progress: 100, message: '文件存在 (未使用)' });
+          } else {
+            throw new Error(`HTTP ${res.status}`);
+          }
         })
-        .catch(err => updateItem(itemId, { status: 'error', message: err.message }));
+        .catch(err => {
+          updateItem(itemId, { status: 'error', message: err.message });
+        });
     }
-    checkFileExists('./seabios.bin', 'seabios');
-    checkFileExists('./vgabios.bin', 'vgabios');
+    checkFileExists(seabiosUrl, 'seabios');
+    checkFileExists(vgabiosUrl, 'vgabios');
 
-    // ==================== 5. V86 引擎初始化 ====================
+    // 6. 初始化 V86
     function initV86() {
       if (typeof V86 === 'undefined') {
         updateItem('v86engine', { status: 'error', message: 'V86 未定义' });
-        showError('V86 库加载失败');
         return;
       }
       updateItem('v86engine', { status: 'loading', message: '正在初始化...' });
@@ -371,42 +380,39 @@
 
       try {
         const emulator = new V86(config);
+        window.emulator = emulator;
         if (emulator.add_listener) {
           emulator.add_listener('emulator-started', () => {
             updateItem('v86engine', { status: 'done', progress: 100, message: '系统已启动' });
           });
           emulator.add_listener('error', (err) => {
-            let msg = err?.message || err;
+            const msg = err?.message || err;
             updateItem('v86engine', { status: 'error', message: msg });
-            showError('模拟器错误: ' + msg);
           });
         } else {
-          // 降级：8秒后标记完成
           setTimeout(() => {
             if (items.find(i => i.id === 'v86engine').status === 'loading') {
               updateItem('v86engine', { status: 'done', progress: 100, message: '启动中...' });
             }
           }, 8000);
         }
-        window.emulator = emulator; // 方便调试
       } catch (e) {
         updateItem('v86engine', { status: 'error', message: e.message });
-        showError('模拟器初始化失败: ' + e.message);
       }
     }
 
-    // 等待 wasm 和 state 下载完成后启动 v86
+    // 等待关键文件后启动 V86
     Promise.all([
       downloadWithProgress(wasmUrl, 'wasm'),
       downloadWithProgress(stateUrl, 'state')
     ]).then(() => {
       initV86();
-    }).catch(err => {
-      // 如果下载失败，仍然尝试启动（可能由 Service Worker 缓存提供）
+    }).catch(() => {
+      // 即使下载失败也尝试启动
       initV86();
     });
 
-    // ==================== 虚拟键盘（保持不变） ====================
+    // ========== 虚拟键盘逻辑（完整保留） ==========
     const keyboardDiv = document.getElementById('keyboard');
     const dragHandle = document.getElementById('dragHandle');
 
@@ -565,7 +571,6 @@
 
     buildKeyboard();
 
-    // 拖动逻辑
     let dragging = false, startX, startY, initialLeft, initialTop;
     function startDrag(e) {
       e.preventDefault();
